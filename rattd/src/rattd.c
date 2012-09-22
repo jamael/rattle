@@ -37,7 +37,7 @@
 #include <rattle/module.h>
 
 #ifndef RATTD_VERSION
-#define RATTD_VERSION "0.1"
+#define RATTD_VERSION VERSION	/* from configure.ac */
 #endif
 
 #ifndef CONFFILEPATH
@@ -113,7 +113,7 @@ int main(int argc, char * const argv[])
 		exit(1);
 	}
 
-//	ptr = dlopen("/usr/local/lib/rattd/hello.so", RTLD_NOW);
+	ptr = dlopen("/usr/local/lib/rattd/hello.so", RTLD_NOW);
 
 	return 0;
 }

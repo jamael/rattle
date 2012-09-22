@@ -1,22 +1,9 @@
-AC_INIT([rattd], [0.0.1])
+AC_INIT([rattd], [0.1])
 
-AC_CONFIG_SRCDIR(src/rattd.c)
-AC_CONFIG_HEADER(config.h)
+AC_CONFIG_SRCDIR(LICENSE)
 AC_CANONICAL_HOST
 
 AM_INIT_AUTOMAKE(foreign)
-
-# Platform-specific tweaks
-case $host in
-*freebsd*)
-    AM_CPPFLAGS="$AM_CPPFLAGS -I/usr/local/include"
-    AM_LDFLAGS="$AM_LDFLAGS -L/usr/local/lib"
-    ;;
-*openbsd*)
-    AM_CPPFLAGS="$AM_CPPFLAGS -I/usr/local/include"
-    AM_LDFLAGS="$AM_LDFLAGS -L/usr/local/lib"
-    ;;
-esac
 
 # Checks for programs.
 AC_PROG_CC
@@ -34,10 +21,6 @@ AC_STRUCT_TM
 AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT8_T
-
-# Also propagate the AM_CPPFLAGS, AM_LDFLAGS compiler arguments
-AC_SUBST(AM_CPPFLAGS)
-AC_SUBST(AM_LDFLAGS)
 
 AC_CONFIG_FILES([Makefile
 		src/Makefile

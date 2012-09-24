@@ -281,11 +281,14 @@ static int decl_parse(conf_decl_t *decl, config_setting_t *sett)
 
 	switch (decl->datatype) {
 	case RATTCONFDTSTR:
+		if (config_setting_type(sett) != CONFIG_TYPE_STRING) {
+			error("`%s' type mismatch; should be string",
+			    config_setting_name(sett));
+			return FAIL;
+		}
 		str = config_setting_get_string(sett);
 		if (!str) {
-			error("incompatible value for `%s', line %i",
-			    config_setting_name(sett),
-			    config_setting_source_line(sett));
+			debug("config_setting_get_string() failed");
 			return FAIL;
 		} else if (decl->flags & RATTCONFFLLST) {
 			/* store in a table even if alone */
@@ -305,16 +308,15 @@ static int decl_parse(conf_decl_t *decl, config_setting_t *sett)
 	case RATTCONFDTNUM8:
 	case RATTCONFDTNUM16:
 	case RATTCONFDTNUM32:
+		if (config_setting_type(sett) != CONFIG_TYPE_INT) {
+			error("`%s' type mismatch; should be numeric",
+			    config_setting_name(sett));
+			return FAIL;
+		}
 		num = config_setting_get_int(sett);
 		retval = decl_check_num(decl, num);
 		if (retval != OK) {
 			debug("decl_check_num() failed");
-			return FAIL;
-		}
-		if (config_setting_type(sett) != CONFIG_TYPE_INT) {
-			error("incompatible value for `%s', line %i",
-			    config_setting_name(sett),
-			    config_setting_source_line(sett));
 			return FAIL;
 		} else if (decl->flags & RATTCONFFLLST) {
 			/* store in a table even if alone */

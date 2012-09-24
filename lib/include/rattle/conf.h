@@ -28,7 +28,7 @@ struct ratt_conf {
 
 	union {
 		char **str;		/* string pointer */
-		char **strlst;		/* string list pointer */
+		char ***strlst;		/* string list pointer */
 		long long *num;		/* numeric pointer */
 		long long **numlst;	/* numeric list pointer */
 	} val;				/* config value */

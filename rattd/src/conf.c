@@ -48,9 +48,8 @@ static inline int decl_strdup(ratt_conf_t *decl, const char *str)
 
 static inline int decl_strdup_elem(ratt_conf_t *decl, const char *str, int i)
 {
-	*(decl->val.strlst)[i] = strdup(str);
-	debug("strdup at %p", *(decl->val.strlst)[i]);
-	if (*(decl->val.strlst)[i])
+	(*(decl->val.strlst))[i] = strdup(str);
+	if ((*(decl->val.strlst))[i])
 		return OK;
 	error("memory allocation failed");
 	return FAIL;
@@ -61,8 +60,8 @@ static inline void decl_release_list(ratt_conf_t *decl)
 	int i = 0;
 	do {
 		debug("releasing memory at index %i for %s", i, decl->path);
-		free(*(decl->val.strlst)[i]);
-	} while (*(decl->val.strlst)[++i] != NULL);
+		free((*(decl->val.strlst))[i]);
+	} while ((*(decl->val.strlst))[++i] != NULL);
 	free(*(decl->val.strlst));
 }
 
@@ -99,7 +98,7 @@ static int decl_parse_list(ratt_conf_t *decl, config_setting_t *sett)
 		return FAIL;
 	}
 
-	*(decl->val.strlst)[len] = NULL;
+	(*(decl->val.strlst))[len] = NULL;
 
 	for (i = 0; i < len; ++i) {
 		switch (decl->datatype) {

@@ -389,7 +389,7 @@ int conf_table_parse(conf_decl_t *conftable)
 	{
 		sett = config_lookup(&l_cfg, decl->path);
 		if (!sett && (decl->flags & RATTCONFFLREQ)) {
-			notice("`%s' declaration is mandatory", decl->path);
+			error("`%s' declaration is mandatory", decl->path);
 			return FAIL;
 		} else if (!sett) {
 			/* use default, then. */

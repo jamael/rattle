@@ -93,7 +93,7 @@ static int decl_alloc_list(conf_decl_t *decl, size_t len)
 	}
 
 	/* NULL-terminate the table */
-	(*(decl->val.strlst))[len] = NULL;
+	(*(decl->val.strlst))[len-1] = NULL;
 	return OK;
 }
 
@@ -123,7 +123,7 @@ static int decl_parse_list(conf_decl_t *decl, config_setting_t *sett)
 				    config_setting_source_line(sett));
 				return FAIL;
 			} else {
-//				retval = decl_strdup_elem(decl, str, i);
+				retval = decl_strdup_elem(decl, str, i);
 				if (retval != OK) {
 					debug("decl_strdup_elem() failed");
 					return FAIL;

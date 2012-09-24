@@ -53,7 +53,7 @@ static char l_conffile[PATH_MAX] = { '\0' };
 
 static char *l_conf_listen = NULL;
 static char *l_conf_proto = NULL;
-static uint16_t l_conf_port = 0;
+static uint16_t *l_conf_port = NULL;
 static char **l_conf_mod_socket_lst = NULL;
 
 static conf_decl_t l_conftable[] = {
@@ -64,11 +64,11 @@ static conf_decl_t l_conftable[] = {
 	    .defval.str = "tcp\0", .val.str = &l_conf_proto,
 	    RATTCONFDTSTR, 0 },
 	{ "port", "bind to the specified port\0",
-	    .defval.num = 2194, .val.num = (long long *)&l_conf_port,
-	    RATTCONFDTNUM16, RATTCONFFLUNS },
+	    .defval.num = 2194, .val.lst.num16u = &l_conf_port,
+	    RATTCONFDTNUM16, RATTCONFFLUNS|RATTCONFFLLST },
 	{ "socket/module", "load specified modules for socket operation\0",
-	    .defval.strlst = { "unix\0", NULL },
-	    .val.strlst = &l_conf_mod_socket_lst,
+	    .defval.lst.str = { "unix\0", NULL },
+	    .val.lst.str = &l_conf_mod_socket_lst,
 	    RATTCONFDTSTR, RATTCONFFLLST },
 	{ NULL },
 };
@@ -143,11 +143,6 @@ int main(int argc, char * const argv[])
 	}
 
 	conf_table_parse(l_conftable);
-
-	debug("listen value is `%s'", l_conf_listen);
-	debug("port value is `%i'", l_conf_port);
-	debug("socket value is %s", l_conf_mod_socket_lst[0]);
-	debug("socket value is %s", l_conf_mod_socket_lst[1]);
 
 	// launch dispatcher
 

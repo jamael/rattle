@@ -48,52 +48,125 @@ static inline int decl_strdup(conf_decl_t *decl, const char *str)
 
 static inline int decl_strdup_elem(conf_decl_t *decl, const char *str, int i)
 {
-	(*(decl->val.strlst))[i] = strdup(str);
-	if ((*(decl->val.strlst))[i])
+	(*(decl->val.lst.str))[i] = strdup(str);
+	if ((*(decl->val.lst.str))[i])
 		return OK;
 	error("memory allocation failed");
 	return FAIL;
 }
 
-static inline void decl_release_list(conf_decl_t *decl)
+static inline int decl_check_num(conf_decl_t *decl, long long num)
 {
-	int i = 0;
-	do {
-		debug("releasing memory at index %i for %s", i, decl->path);
-		if ((*(decl->val.strlst))[i])
-			free((*(decl->val.strlst))[i]);
-	} while ((*(decl->val.strlst))[++i] != NULL);
-	free(*(decl->val.strlst));
+	switch(decl->datatype) {
+	case RATTCONFDTNUM8:
+		if ((decl->flags & RATTCONFFLUNS)
+		    && ((num > UCHAR_MAX) || (num < 0))) {
+			error("`%lli' out of bound (%u to %u).",
+		 	    num, 0, UCHAR_MAX);
+			return FAIL;
+		} else if (!(decl->flags & RATTCONFFLUNS)
+		    && ((num > SCHAR_MAX) || (num < SCHAR_MIN))) {
+			error("`%lli' out of bound (%i to %i).",
+		 	    num, SCHAR_MIN, SCHAR_MAX);
+			return FAIL;
+		}
+		break;
+	case RATTCONFDTNUM16:
+		if ((decl->flags & RATTCONFFLUNS)
+		    && ((num > USHRT_MAX) || (num < 0))) {
+			error("`%lli' out of bound (%u to %u).",
+		 	    num, 0, USHRT_MAX);
+			return FAIL;
+		} else if (!(decl->flags & RATTCONFFLUNS)
+		    && ((num > SHRT_MAX) || (num < SHRT_MIN))) {
+			error("`%lli' out of bound (%i to %i).",
+		 	    num, SHRT_MIN, SHRT_MAX);
+			return FAIL;
+		}
+		break;
+	case RATTCONFDTNUM32:
+		if ((decl->flags & RATTCONFFLUNS)
+		    && ((num > UINT_MAX) || (num < 0))) {
+			error("`%lli' out of bound (%u to %u).",
+		 	    num, 0, UINT_MAX);
+			return FAIL;
+		} else if (!(decl->flags & RATTCONFFLUNS)
+		    && ((num > INT_MAX) || (num < INT_MIN))) {
+			error("`%lli' out of bound (%i to %i).",
+		 	    num, INT_MIN, INT_MAX);
+			return FAIL;
+		}
+		break;
+	case RATTCONFDTSTR:
+		/* empty */
+		break;
+	default:
+		debug("unknown datatype value of %i", decl->datatype);
+		return FAIL;
+	}
+	return OK;
+}
+
+static void decl_release_list(conf_decl_t *decl)
+{
+	int i;
+
+	for (i = 0; i < decl->lstcnt; ++i) {
+		switch (decl->datatype) {
+		case RATTCONFDTSTR:
+			debug("releasing index %i for `%s'", i, decl->path);
+			if ((*(decl->val.lst.str))[i])
+				free((*(decl->val.lst.str))[i]);
+			break;
+		case RATTCONFDTNUM8:
+		case RATTCONFDTNUM16:
+		case RATTCONFDTNUM32:
+			/* empty */
+			break;
+		default:
+			debug("unknown datatype value of %i", decl->datatype);
+			break;
+		}
+	}
+	debug("releasing memory chunck for `%s'", decl->path);
+	free(*(decl->val.lst.str));
 }
 
 static int decl_alloc_list(conf_decl_t *decl, size_t len)
 {
+	size_t size = 0;
 	debug("allocating list of %i element(s) for `%s'", len, decl->path);
-
-	/* make room for the NULL-terminator */
-	len++;
 
 	switch (decl->datatype) {
 	case RATTCONFDTSTR:
-		*(decl->val.strlst) = calloc(len, sizeof(char *));
+		size = sizeof(char *);
 		break;
 	case RATTCONFDTNUM8:
+		size = sizeof(int8_t);
+		break;
 	case RATTCONFDTNUM16:
+		size = sizeof(int16_t);
+		break;
 	case RATTCONFDTNUM32:
-		*(decl->val.numlst) = calloc(len, sizeof(int32_t *));
+		size = sizeof(int32_t);
 		break;
 	default:
 		debug("unknown datatype value of %i", decl->datatype);
 		return FAIL;
 	}
 
-	if (!(*(decl->val.strlst))) {
+	*(decl->val.lst.str) = calloc(len, size);
+	if (!(*(decl->val.lst.str))) {
 		error("memory allocation failed");
 		return FAIL;
 	}
 
-	/* NULL-terminate the table */
-	(*(decl->val.strlst))[len-1] = NULL;
+	decl->lstcnt = len;
+	return OK;
+}
+
+static int decl_defval_list(conf_decl_t *decl)
+{
 	return OK;
 }
 
@@ -131,68 +204,44 @@ static int decl_parse_list(conf_decl_t *decl, config_setting_t *sett)
 			}
 			break;
 		case RATTCONFDTNUM8:
-			if (config_setting_type(sett) != CONFIG_TYPE_INT) {
-				error("incompatible value for `%s', line %i",
-				    config_setting_name(sett),
-				    config_setting_source_line(sett));
+			num = config_setting_get_int_elem(sett, i);
+			retval = decl_check_num(decl, num);
+			if (retval != OK) {
+				debug("decl_check_num() failed");
 				return FAIL;
 			}
-			num = config_setting_get_int(sett);
-			if ((decl->flags & RATTCONFFLUNS)
-			    && ((num > UCHAR_MAX) || (num < 0))) {
-				error("`%lli' out of bound (%i to %i).",
-			 	    num, 0, UCHAR_MAX);
-				return FAIL;
-			} else if (!(decl->flags & RATTCONFFLUNS)
-			    && ((num > SCHAR_MAX) || (num < SCHAR_MIN))) {
-				error("`%lli' out of bound (%i to %i).",
-			 	    num, SCHAR_MIN, SCHAR_MAX);
-				return FAIL;
-			}
-			*(decl->val.num) = num;
+			if (decl->flags & RATTCONFFLUNS)
+				(*(decl->val.lst.num8u))[i] = (uint8_t) num;
+			else
+				(*(decl->val.lst.num8))[i] = (int8_t) num;
 			break;
 		case RATTCONFDTNUM16:
-			if (config_setting_type(sett) != CONFIG_TYPE_INT) {
-				error("incompatible value for `%s', line %i",
-				    config_setting_name(sett),
-				    config_setting_source_line(sett));
+			num = config_setting_get_int_elem(sett, i);
+			retval = decl_check_num(decl, num);
+			if (retval != OK) {
+				debug("decl_check_num() failed");
 				return FAIL;
 			}
-			num = config_setting_get_int(sett);
-			if ((decl->flags & RATTCONFFLUNS)
-			    && ((num > USHRT_MAX) || (num < 0))) {
-				error("`%lli' out of bound (%i to %i).",
-			 	    num, 0, USHRT_MAX);
-				return FAIL;
-			} else if (!(decl->flags & RATTCONFFLUNS)
-			    && ((num > SHRT_MAX) || (num < SHRT_MIN))) {
-				error("`%lli' out of bound (%i to %i).",
-			 	    num, SHRT_MIN, SHRT_MAX);
-				return FAIL;
-			}
-			*(decl->val.num) = num;
+			if (decl->flags & RATTCONFFLUNS)
+				(*(decl->val.lst.num16u))[i] = (uint16_t) num;
+			else
+				(*(decl->val.lst.num16))[i] = (int16_t) num;
 			break;
 		case RATTCONFDTNUM32:
-			if (config_setting_type(sett) != CONFIG_TYPE_INT) {
-				error("incompatible value for `%s', line %i",
-				    config_setting_name(sett),
-				    config_setting_source_line(sett));
+			num = config_setting_get_int_elem(sett, i);
+			retval = decl_check_num(decl, num);
+			if (retval != OK) {
+				debug("decl_check_num() failed");
 				return FAIL;
 			}
-			num = config_setting_get_int(sett);
-			if ((decl->flags & RATTCONFFLUNS)
-			    && ((num > UINT_MAX) || (num < 0))) {
-				error("`%lli' out of bound (%i to %i).",
-			 	    num, 0, UINT_MAX);
-				return FAIL;
-			} else if (!(decl->flags & RATTCONFFLUNS)
-			    && ((num > INT_MAX) || (num < INT_MIN))) {
-				error("`%lli' out of bound (%i to %i).",
-			 	    num, INT_MIN, INT_MAX);
-				return FAIL;
-			}
-			*(decl->val.num) = num;
+			if (decl->flags & RATTCONFFLUNS)
+				(*(decl->val.lst.num32u))[i] = (uint32_t) num;
+			else
+				(*(decl->val.lst.num32))[i] = (int32_t) num;
 			break;
+		default:
+			debug("unknown datatype value of %i", decl->datatype);
+			return FAIL;
 		}
 	}
 	return OK;
@@ -223,73 +272,38 @@ static int decl_parse(conf_decl_t *decl, config_setting_t *sett)
 			retval = decl_strdup(decl, str);
 
 		if (retval != OK) {
-			debug("strdup() failed");
+			debug("decl_strdup_elem() or decl_strdup() failed");
 			return FAIL;
 		}
 		break;
 	case RATTCONFDTNUM8:
-		if (config_setting_type(sett) != CONFIG_TYPE_INT) {
-			error("incompatible value for `%s', line %i",
-			    config_setting_name(sett),
-			    config_setting_source_line(sett));
-			return FAIL;
-		}
-		num = config_setting_get_int(sett);
-		if ((decl->flags & RATTCONFFLUNS)
-		    && ((num > UCHAR_MAX) || (num < 0))) {
-			error("`%lli' out of bound (%i to %i).",
-		 	    num, 0, UCHAR_MAX);
-			return FAIL;
-		} else if (!(decl->flags & RATTCONFFLUNS)
-		    && ((num > SCHAR_MAX) || (num < SCHAR_MIN))) {
-			error("`%lli' out of bound (%i to %i).",
-		 	    num, SCHAR_MIN, SCHAR_MAX);
-			return FAIL;
-		}
-		*(decl->val.num) = num;
-		break;
 	case RATTCONFDTNUM16:
-		if (config_setting_type(sett) != CONFIG_TYPE_INT) {
-			error("incompatible value for `%s', line %i",
-			    config_setting_name(sett),
-			    config_setting_source_line(sett));
-			return FAIL;
-		}
-		num = config_setting_get_int(sett);
-		if ((decl->flags & RATTCONFFLUNS)
-		    && ((num > USHRT_MAX) || (num < 0))) {
-			error("`%lli' out of bound (%i to %i).",
-		 	    num, 0, USHRT_MAX);
-			return FAIL;
-		} else if (!(decl->flags & RATTCONFFLUNS)
-		    && ((num > SHRT_MAX) || (num < SHRT_MIN))) {
-			error("`%lli' out of bound (%i to %i).",
-		 	    num, SHRT_MIN, SHRT_MAX);
-			return FAIL;
-		}
-		*(decl->val.num) = num;
-		break;
 	case RATTCONFDTNUM32:
+		num = config_setting_get_int(sett);
+		retval = decl_check_num(decl, num);
+		if (retval != OK) {
+			debug("decl_check_num() failed");
+			return FAIL;
+		}
 		if (config_setting_type(sett) != CONFIG_TYPE_INT) {
 			error("incompatible value for `%s', line %i",
 			    config_setting_name(sett),
 			    config_setting_source_line(sett));
 			return FAIL;
-		}
-		num = config_setting_get_int(sett);
-		if ((decl->flags & RATTCONFFLUNS)
-		    && ((num > UINT_MAX) || (num < 0))) {
-			error("`%lli' out of bound (%i to %i).",
-		 	    num, 0, UINT_MAX);
-			return FAIL;
-		} else if (!(decl->flags & RATTCONFFLUNS)
-		    && ((num > INT_MAX) || (num < INT_MIN))) {
-			error("`%lli' out of bound (%i to %i).",
-		 	    num, INT_MIN, INT_MAX);
-			return FAIL;
-		}
-		*(decl->val.num) = num;
+		} else if (decl->flags & RATTCONFFLLST) {
+			/* store in a table even if alone */
+			if (decl_alloc_list(decl, 1) != OK) {
+				debug("decl_alloc_list() failed");
+				return FAIL;
+			}
+			(*(decl->val.lst.num32u))[0] = (uint32_t) num;
+		} else
+			*(decl->val.num) = num;
 		break;
+	default:
+		debug("unknown datatype value of %i", decl->datatype);
+		return FAIL;
+
 	}
 	return OK;
 }
@@ -331,7 +345,7 @@ void conf_table_release(conf_decl_t *conftable)
 			break;
 		default:
 			debug("unknown datatype value of %i", decl->datatype);
-			break;
+			continue;
 		}
 	}
 }
@@ -351,6 +365,12 @@ int conf_table_parse(conf_decl_t *conftable)
 			return FAIL;
 		} else if (!sett) {
 			/* use default, then. */
+			if (decl->flags & RATTCONFFLLST) {
+				/* uh oh; a list of default */
+				decl_defval_list(decl);
+				continue;
+			}
+
 			switch (decl->datatype) {
 			case RATTCONFDTSTR:
 				notice("`%s' not found, using `%s'",
@@ -376,16 +396,14 @@ int conf_table_parse(conf_decl_t *conftable)
 		    && (config_setting_is_array(sett))) {
 			/* declaration allows multiple value */
 			retval = decl_parse_list(decl, sett);
-			if (retval != OK) {
-				debug("decl_parse_list() failed");
-				return FAIL;
-			}
-		} else {
+		} else
 			retval = decl_parse(decl, sett);
-			if (retval != OK) {
-				debug("decl_parse() failed");
-				return FAIL;
-			}
+
+		if (retval != OK) {
+			debug("decl_parse_list() or decl_parse() failed");
+			error("configuration parser failed at line %i",
+			    config_setting_source_line(sett));
+			return FAIL;
 		}
 	}
 	return OK;

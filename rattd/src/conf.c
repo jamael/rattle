@@ -212,12 +212,19 @@ static int decl_parse(conf_decl_t *decl, config_setting_t *sett)
 			    config_setting_name(sett),
 			    config_setting_source_line(sett));
 			return FAIL;
-		} else {
-			retval = decl_strdup(decl, str);
-			if (retval != OK) {
-				debug("decl_strdup() failed");
+		} else if (decl->flags & RATTCONFFLLST) {
+			/* store in a table even if alone */
+			if (decl_alloc_list(decl, 1) != OK) {
+				debug("decl_alloc_list() failed");
 				return FAIL;
 			}
+			retval = decl_strdup_elem(decl, str, 0);
+		} else 
+			retval = decl_strdup(decl, str);
+
+		if (retval != OK) {
+			debug("strdup() failed");
+			return FAIL;
 		}
 		break;
 	case RATTCONFDTNUM8:

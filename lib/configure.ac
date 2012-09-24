@@ -1,4 +1,4 @@
-AC_INIT([librattle], [0.1.0])
+AC_INIT([librattle], [0.1])
 
 AC_CONFIG_SRCDIR(LICENSE)
 AC_CANONICAL_HOST
@@ -22,7 +22,7 @@ AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT8_T
 
-# Path stuff
+# Absolute root path of SRCDIR
 srcroot=$(cd $srcdir; pwd)
 
 # Search headers locally first

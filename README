@@ -1,14 +1,24 @@
 RATTLE, A multi-slot link-of-trust socket manager.
 
-RATTLE stands for (r)emote (a)ccess (t)hrough (t)tunnel.
+RATTLE stands for (r)emote (a)ccess (t)hrough (t)unnel.
 The remaining part of the accronym is left to the individual for kind wording
 once they get to know better.  As an example, mine are (l)ove, (e)tcetera.
 
 Although RATTLE accronym strongly suggests that tunneling is the main purpose
 of this software, it could be anything that needs a link-of-trust network.
 
-RATTLE is not ready and most likely not going to be for a couple of years.
-However, it could be months if you join the fun!
+What does that mean?  Well, that is a good question...
+Quite honestly, I dunno.
+
+It is fair enough to say that naming might change, purpose might change
+and the will of doing this might change.  So don't expect much from this.
+Time will tell.
+
+RATTLE is not ready for any purpose except the joy of programming.  If you
+find yourself attracted to the project, feel free to jump in with your ideas
+and patches.  It is unclear for the moment where RATTLE is going to nor what
+are the goals of the project.  I felt inspired at writing a software from
+scratch while looking at DNDS software written by Nicolas-Joseph Bouliane.
 
 RATTLE is inspired by the DNDS software design scheme.
 You can find more about DNDS at http://github.com/nicboul/DNDS/

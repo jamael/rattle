@@ -1,11 +1,14 @@
-RATTLE, A VPN manager.
+RATTLE, A multi-slot link-of-trust socket manager.
 
 RATTLE stands for (r)emote (a)ccess (t)hrough (t)tunnel.
 The remaining part of the accronym is left to the individual for kind wording
 once they get to know better.  As an example, mine are (l)ove, (e)tcetera.
 
+Although RATTLE accronym strongly suggests that tunneling is the main purpose
+of this software, it could be anything that needs a link-of-trust network.
+
 RATTLE is not ready and most likely not going to be for a couple of years.
 However, it could be months if you join the fun!
 
-RATTLE is inspired by the DNDS software.
+RATTLE is inspired by the DNDS software design scheme.
 You can find more about DNDS at http://github.com/nicboul/DNDS/

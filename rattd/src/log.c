@@ -1,4 +1,5 @@
 /*
+ * RATTD logger
  * Copyright (c) 2012, Jamael Seun
  * All rights reserved.
  * 
@@ -26,3 +27,16 @@
 
 
 #include <rattle/def.h>
+#include <rattle/log.h>
+
+//ratt_module_pool_t *l_pool_log
+
+int log_fini(void)
+{
+	/* empty */
+}
+
+int log_init(void)
+{
+//	ratt_module_open("/usr/local/lib/rattd/log_std.so");
+}

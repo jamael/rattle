@@ -34,12 +34,11 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <rattle/def.h>
-#include <rattle/log.h>
-#include <rattle/module.h>
+#include <rattd/def.h>
+#include <rattd/log.h>
+#include <rattd/conf.h>
 
 #include "conf.h"
-#include "log.h"
 
 #ifndef RATTD_VERSION
 #define RATTD_VERSION VERSION	/* from configure.ac */
@@ -49,7 +48,7 @@
 #define CONFFILEPATH "/etc/rattle/rattd.conf"
 #endif
 
-ratt_conf_t *g_conf = NULL;
+conf_decl_t *g_conf = NULL;
 static char l_conffile[PATH_MAX] = { '\0' };
 
 static char *l_conf_listen = NULL;
@@ -57,7 +56,7 @@ static char *l_conf_proto = NULL;
 static uint16_t l_conf_port = 0;
 static char **l_conf_mod_socket_lst = NULL;
 
-static ratt_conf_t l_conftable[] = {
+static conf_decl_t l_conftable[] = {
 	{ "listen", "listen on the specified FQDN or IP address\0",
 	    .defval.str = "localhost\0", .val.str = &l_conf_listen,
 	    RATTCONFDTSTR, 0 },

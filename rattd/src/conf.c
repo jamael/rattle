@@ -31,13 +31,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <rattle/def.h>
-#include <rattle/conf.h>
-#include <rattle/log.h>
+#include <rattd/def.h>
+#include <rattd/conf.h>
+#include <rattd/log.h>
 
 static struct config_t l_cfg;
 
-static inline int decl_strdup(ratt_conf_t *decl, const char *str)
+static inline int decl_strdup(conf_decl_t *decl, const char *str)
 {
 	*(decl->val.str) = strdup(str);
 	if (*(decl->val.str))
@@ -46,7 +46,7 @@ static inline int decl_strdup(ratt_conf_t *decl, const char *str)
 	return FAIL;
 }
 
-static inline int decl_strdup_elem(ratt_conf_t *decl, const char *str, int i)
+static inline int decl_strdup_elem(conf_decl_t *decl, const char *str, int i)
 {
 	(*(decl->val.strlst))[i] = strdup(str);
 	if ((*(decl->val.strlst))[i])
@@ -55,17 +55,49 @@ static inline int decl_strdup_elem(ratt_conf_t *decl, const char *str, int i)
 	return FAIL;
 }
 
-static inline void decl_release_list(ratt_conf_t *decl)
+static inline void decl_release_list(conf_decl_t *decl)
 {
 	int i = 0;
 	do {
 		debug("releasing memory at index %i for %s", i, decl->path);
-		free((*(decl->val.strlst))[i]);
+		if ((*(decl->val.strlst))[i])
+			free((*(decl->val.strlst))[i]);
 	} while ((*(decl->val.strlst))[++i] != NULL);
 	free(*(decl->val.strlst));
 }
 
-static int decl_parse_list(ratt_conf_t *decl, config_setting_t *sett)
+static int decl_alloc_list(conf_decl_t *decl, size_t len)
+{
+	debug("allocating list of %i element(s) for `%s'", len, decl->path);
+
+	/* make room for the NULL-terminator */
+	len++;
+
+	switch (decl->datatype) {
+	case RATTCONFDTSTR:
+		*(decl->val.strlst) = calloc(len, sizeof(char *));
+		break;
+	case RATTCONFDTNUM8:
+	case RATTCONFDTNUM16:
+	case RATTCONFDTNUM32:
+		*(decl->val.numlst) = calloc(len, sizeof(int32_t *));
+		break;
+	default:
+		debug("unknown datatype value of %i", decl->datatype);
+		return FAIL;
+	}
+
+	if (!(*(decl->val.strlst))) {
+		error("memory allocation failed");
+		return FAIL;
+	}
+
+	/* NULL-terminate the table */
+	(*(decl->val.strlst))[len] = NULL;
+	return OK;
+}
+
+static int decl_parse_list(conf_decl_t *decl, config_setting_t *sett)
 {
 	size_t len = 0;
 	const char *str = NULL;
@@ -78,27 +110,8 @@ static int decl_parse_list(ratt_conf_t *decl, config_setting_t *sett)
 		return FAIL;
 	}
 
-	/* first alloc table, plus null bucket */
-	switch (decl->datatype) {
-	case RATTCONFDTSTR:
-		*(decl->val.strlst) = calloc(len + 1, sizeof(char *));
-		break;
-	case RATTCONFDTNUM8:
-	case RATTCONFDTNUM16:
-	case RATTCONFDTNUM32:
-		*(decl->val.numlst) = calloc(len + 1, sizeof(int32_t *));
-		break;
-	default:
-		debug("unknown datatype value of %i", decl->datatype);
-		return FAIL;
-	}
-
-	if (!(*(decl->val.strlst))) {
-		error("memory allocation failed");
-		return FAIL;
-	}
-
-	(*(decl->val.strlst))[len] = NULL;
+	/* first alloc the table */
+	decl_alloc_list(decl, len);
 
 	for (i = 0; i < len; ++i) {
 		switch (decl->datatype) {
@@ -110,7 +123,7 @@ static int decl_parse_list(ratt_conf_t *decl, config_setting_t *sett)
 				    config_setting_source_line(sett));
 				return FAIL;
 			} else {
-				retval = decl_strdup_elem(decl, str, i);
+//				retval = decl_strdup_elem(decl, str, i);
 				if (retval != OK) {
 					debug("decl_strdup_elem() failed");
 					return FAIL;
@@ -185,7 +198,7 @@ static int decl_parse_list(ratt_conf_t *decl, config_setting_t *sett)
 	return OK;
 }
 
-static int decl_parse(ratt_conf_t *decl, config_setting_t *sett)
+static int decl_parse(conf_decl_t *decl, config_setting_t *sett)
 {
 	const char *str = NULL;
 	long long num = 0;
@@ -286,10 +299,10 @@ int conf_open(const char *file)
 	return OK;
 }
 
-void conf_table_release(ratt_conf_t *conftable)
+void conf_table_release(conf_decl_t *conftable)
 {
 	debug("entering %s", __func__);
-	ratt_conf_t *decl = NULL;
+	conf_decl_t *decl = NULL;
 	int i = 0;
 
 	while ((decl = &conftable[i++]) && decl->path != NULL)
@@ -316,10 +329,10 @@ void conf_table_release(ratt_conf_t *conftable)
 	}
 }
 
-int conf_table_parse(ratt_conf_t *conftable)
+int conf_table_parse(conf_decl_t *conftable)
 {
 	debug("entering %s", __func__);
-	ratt_conf_t *decl = NULL;
+	conf_decl_t *decl = NULL;
 	config_setting_t *sett = NULL;
 	int retval, i = 0;
 

@@ -2,4 +2,4 @@
 # modules/Makefile.am
 #
 
-SUBDIRS = test
+SUBDIRS = logger test

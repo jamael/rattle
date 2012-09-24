@@ -22,8 +22,26 @@ AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT8_T
 
+# Use libconfig for configuration file syntax
+PKG_CHECK_MODULES([libconfig], [libconfig >= 1.3],,
+  AC_MSG_ERROR([libconfig 1.3 or newer not found.])
+)
+AC_SUBST(libconfig_CFLAGS)
+AC_SUBST(libconfig_LIBS)
+
+# absolute path to SRCDIR
+srcroot=$(cd $srcdir; pwd)
+AM_CPPFLAGS="-I$srcroot/include $AM_CPPFLAGS"
+AC_SUBST(AM_CPPFLAGS)
+
+#
+# There is way too much Makefile for nothing...
+#
 AC_CONFIG_FILES([Makefile
+		include/Makefile
+		include/rattd/Makefile
 		src/Makefile
 		modules/Makefile
-		modules/test/Makefile])
+		modules/logger/Makefile
+		modules/logger/std/Makefile])
 AC_OUTPUT

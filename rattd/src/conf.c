@@ -130,70 +130,70 @@ static int decl_parse_list(conf_decl_t *decl, config_setting_t *sett)
 				}
 			}
 			break;
-	case RATTCONFDTNUM8:
-		if (config_setting_type(sett) != CONFIG_TYPE_INT) {
-			error("incompatible value for `%s', line %i",
-			    config_setting_name(sett),
-			    config_setting_source_line(sett));
-			return FAIL;
+		case RATTCONFDTNUM8:
+			if (config_setting_type(sett) != CONFIG_TYPE_INT) {
+				error("incompatible value for `%s', line %i",
+				    config_setting_name(sett),
+				    config_setting_source_line(sett));
+				return FAIL;
+			}
+			num = config_setting_get_int(sett);
+			if ((decl->flags & RATTCONFFLUNS)
+			    && ((num > UCHAR_MAX) || (num < 0))) {
+				error("`%lli' out of bound (%i to %i).",
+			 	    num, 0, UCHAR_MAX);
+				return FAIL;
+			} else if (!(decl->flags & RATTCONFFLUNS)
+			    && ((num > SCHAR_MAX) || (num < SCHAR_MIN))) {
+				error("`%lli' out of bound (%i to %i).",
+			 	    num, SCHAR_MIN, SCHAR_MAX);
+				return FAIL;
+			}
+			*(decl->val.num) = num;
+			break;
+		case RATTCONFDTNUM16:
+			if (config_setting_type(sett) != CONFIG_TYPE_INT) {
+				error("incompatible value for `%s', line %i",
+				    config_setting_name(sett),
+				    config_setting_source_line(sett));
+				return FAIL;
+			}
+			num = config_setting_get_int(sett);
+			if ((decl->flags & RATTCONFFLUNS)
+			    && ((num > USHRT_MAX) || (num < 0))) {
+				error("`%lli' out of bound (%i to %i).",
+			 	    num, 0, USHRT_MAX);
+				return FAIL;
+			} else if (!(decl->flags & RATTCONFFLUNS)
+			    && ((num > SHRT_MAX) || (num < SHRT_MIN))) {
+				error("`%lli' out of bound (%i to %i).",
+			 	    num, SHRT_MIN, SHRT_MAX);
+				return FAIL;
+			}
+			*(decl->val.num) = num;
+			break;
+		case RATTCONFDTNUM32:
+			if (config_setting_type(sett) != CONFIG_TYPE_INT) {
+				error("incompatible value for `%s', line %i",
+				    config_setting_name(sett),
+				    config_setting_source_line(sett));
+				return FAIL;
+			}
+			num = config_setting_get_int(sett);
+			if ((decl->flags & RATTCONFFLUNS)
+			    && ((num > UINT_MAX) || (num < 0))) {
+				error("`%lli' out of bound (%i to %i).",
+			 	    num, 0, UINT_MAX);
+				return FAIL;
+			} else if (!(decl->flags & RATTCONFFLUNS)
+			    && ((num > INT_MAX) || (num < INT_MIN))) {
+				error("`%lli' out of bound (%i to %i).",
+			 	    num, INT_MIN, INT_MAX);
+				return FAIL;
+			}
+			*(decl->val.num) = num;
+			break;
 		}
-		num = config_setting_get_int(sett);
-		if ((decl->flags & RATTCONFFLUNS)
-		    && ((num > UCHAR_MAX) || (num < 0))) {
-			error("`%lli' out of bound (%i to %i).",
-		 	    num, 0, UCHAR_MAX);
-			return FAIL;
-		} else if (!(decl->flags & RATTCONFFLUNS)
-		    && ((num > SCHAR_MAX) || (num < SCHAR_MIN))) {
-			error("`%lli' out of bound (%i to %i).",
-		 	    num, SCHAR_MIN, SCHAR_MAX);
-			return FAIL;
-		}
-		*(decl->val.num) = num;
-		break;
-	case RATTCONFDTNUM16:
-		if (config_setting_type(sett) != CONFIG_TYPE_INT) {
-			error("incompatible value for `%s', line %i",
-			    config_setting_name(sett),
-			    config_setting_source_line(sett));
-			return FAIL;
-		}
-		num = config_setting_get_int(sett);
-		if ((decl->flags & RATTCONFFLUNS)
-		    && ((num > USHRT_MAX) || (num < 0))) {
-			error("`%lli' out of bound (%i to %i).",
-		 	    num, 0, USHRT_MAX);
-			return FAIL;
-		} else if (!(decl->flags & RATTCONFFLUNS)
-		    && ((num > SHRT_MAX) || (num < SHRT_MIN))) {
-			error("`%lli' out of bound (%i to %i).",
-		 	    num, SHRT_MIN, SHRT_MAX);
-			return FAIL;
-		}
-		*(decl->val.num) = num;
-		break;
-	case RATTCONFDTNUM32:
-		if (config_setting_type(sett) != CONFIG_TYPE_INT) {
-			error("incompatible value for `%s', line %i",
-			    config_setting_name(sett),
-			    config_setting_source_line(sett));
-			return FAIL;
-		}
-		num = config_setting_get_int(sett);
-		if ((decl->flags & RATTCONFFLUNS)
-		    && ((num > UINT_MAX) || (num < 0))) {
-			error("`%lli' out of bound (%i to %i).",
-		 	    num, 0, UINT_MAX);
-			return FAIL;
-		} else if (!(decl->flags & RATTCONFFLUNS)
-		    && ((num > INT_MAX) || (num < INT_MIN))) {
-			error("`%lli' out of bound (%i to %i).",
-		 	    num, INT_MIN, INT_MAX);
-			return FAIL;
-		}
-		*(decl->val.num) = num;
-		break;
-	}
 	}
 	return OK;
 }

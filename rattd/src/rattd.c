@@ -1,4 +1,5 @@
 /*
+ * The RATTLE daemon
  * Copyright (c) 2012, Jamael Seun
  * All rights reserved.
  * 
@@ -25,16 +26,20 @@
  */
 
 
-#include <dlfcn.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
 #include <rattle/def.h>
 #include <rattle/log.h>
 #include <rattle/module.h>
+
+#include "conf.h"
+#include "log.h"
 
 #ifndef RATTD_VERSION
 #define RATTD_VERSION VERSION	/* from configure.ac */
@@ -44,7 +49,30 @@
 #define CONFFILEPATH "/etc/rattle/rattd.conf"
 #endif
 
+ratt_conf_t *g_conf = NULL;
 static char l_conffile[PATH_MAX] = { '\0' };
+
+static char *l_conf_listen = NULL;
+static char *l_conf_proto = NULL;
+static uint16_t l_conf_port = 0;
+static char **l_conf_mod_socket_lst = NULL;
+
+static ratt_conf_t l_conftable[] = {
+	{ "listen", "listen on the specified FQDN or IP address\0",
+	    .defval.str = "localhost\0", .val.str = &l_conf_listen,
+	    RATTCONFDTSTR, 0 },
+	{ "proto", "use specified transport protocol\0",
+	    .defval.str = "tcp\0", .val.str = &l_conf_proto,
+	    RATTCONFDTSTR, 0 },
+	{ "port", "bind to the specified port\0",
+	    .defval.num = 2194, .val.num = (long long *)&l_conf_port,
+	    RATTCONFDTNUM16, RATTCONFFLUNS },
+	{ "socket/module", "load specified modules for socket operation\0",
+	    .defval.strlst = { "unix\0", NULL },
+	    .val.strlst = &l_conf_mod_socket_lst,
+	    RATTCONFDTSTR, RATTCONFFLLST },
+	{ NULL },
+};
 
 static int parse_argv_opts(int argc, char * const argv[])
 {
@@ -71,6 +99,7 @@ static int parse_argv_opts(int argc, char * const argv[])
 
 static int load_config()
 {
+	int retval;
 	size_t n;
 	if (*l_conffile == '\0') {
 		if ((n = strlen(CONFFILEPATH)) >= PATH_MAX) {
@@ -82,11 +111,9 @@ static int load_config()
 		strcpy(l_conffile, CONFFILEPATH);
 		l_conffile[PATH_MAX-1] = '\0';
 	}
-
 	notice("configuring from `%s'", l_conffile);
-
-	/* ratt_conf_load here */
-	return OK;
+	retval = conf_open(l_conffile);
+	return (retval == OK) ? OK : FAIL;
 }
 
 static void show_startup_notice()
@@ -99,12 +126,15 @@ static void show_startup_notice()
 
 int main(int argc, char * const argv[])
 {
-	void *ptr;
-
 	show_startup_notice();
 
 	if (parse_argv_opts(argc, argv) != OK) {
 		debug("parse_argv_opts() failed");
+		exit(1);
+	}
+
+	if (conf_init() != OK) {
+		debug("conf_init() failed");
 		exit(1);
 	}
 
@@ -113,7 +143,16 @@ int main(int argc, char * const argv[])
 		exit(1);
 	}
 
-	ptr = dlopen("/usr/local/lib/rattd/hello.so", RTLD_NOW);
+	conf_table_parse(l_conftable);
 
+	debug("listen value is `%s'", l_conf_listen);
+	debug("port value is `%i'", l_conf_port);
+	debug("socket value is %s", l_conf_mod_socket_lst[0]);
+	debug("socket value is %s", l_conf_mod_socket_lst[1]);
+
+	// launch dispatcher
+
+	conf_table_release(l_conftable);
+	conf_fini();
 	return 0;
 }

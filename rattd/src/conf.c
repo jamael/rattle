@@ -179,7 +179,7 @@ static int decl_parse_list(conf_decl_t *decl, config_setting_t *sett)
 
 	len = config_setting_length(sett);
 	if (len <= 0) {
-		debug("config_setting_length() gives invalid index");
+		debug("config_setting_length() invalid length");
 		return FAIL;
 	}
 

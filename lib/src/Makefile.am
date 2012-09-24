@@ -3,4 +3,5 @@
 #
 
 lib_LTLIBRARIES = librattle.la
-librattle_la_SOURCES = conf.c module.c
+librattle_la_SOURCES =
+librattle_la_LDFLAGS =

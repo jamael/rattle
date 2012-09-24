@@ -1,3 +1,12 @@
-RATTLE, A VPN manager.
+RATTLE, A link-of-trust socket manager.
 
-rattd(8) is the VPN manager daemon of the RATTLE software.
+rattd(8) is the multi-slot link-of-trust socket manager daemon of
+the RATTLE software.
+
+REQUIREMENTS
+
+You will need the following libraries and header files installed on
+your system to get rattd compiled from source.
+
+	libconfig version 1.3 or newer;
+	pkg-config

@@ -172,6 +172,7 @@ static int decl_defval_list(conf_decl_t *decl)
 
 static int decl_parse_list(conf_decl_t *decl, config_setting_t *sett)
 {
+	config_setting_t *elem = NULL;
 	size_t len = 0;
 	const char *str = NULL;
 	long long num = 0;
@@ -187,13 +188,23 @@ static int decl_parse_list(conf_decl_t *decl, config_setting_t *sett)
 	decl_alloc_list(decl, len);
 
 	for (i = 0; i < len; ++i) {
+
+		elem = config_setting_get_elem(sett, i);
+		if (!elem) {
+			debug("config_setting_get_elem() failed");
+			return FAIL;
+		}
+
 		switch (decl->datatype) {
 		case RATTCONFDTSTR:
-			str = config_setting_get_string_elem(sett, i);
+			if (config_setting_type(elem) != CONFIG_TYPE_STRING) {
+				error("`%s' type mismatch; should be string",
+				    config_setting_name(sett));
+				return FAIL;
+			}
+			str = config_setting_get_string(elem);
 			if (!str) {
-				error("incompatible value for `%s', line %i",
-				    config_setting_name(sett),
-				    config_setting_source_line(sett));
+				debug("config_setting_get_string() failed");
 				return FAIL;
 			} else {
 				retval = decl_strdup_elem(decl, str, i);
@@ -204,7 +215,12 @@ static int decl_parse_list(conf_decl_t *decl, config_setting_t *sett)
 			}
 			break;
 		case RATTCONFDTNUM8:
-			num = config_setting_get_int_elem(sett, i);
+			if (config_setting_type(elem) != CONFIG_TYPE_INT) {
+				error("`%s' type mismatch; should be numeric",
+				    config_setting_name(sett));
+				return FAIL;
+			}
+			num = config_setting_get_int(elem);
 			retval = decl_check_num(decl, num);
 			if (retval != OK) {
 				debug("decl_check_num() failed");
@@ -216,7 +232,12 @@ static int decl_parse_list(conf_decl_t *decl, config_setting_t *sett)
 				(*(decl->val.lst.num8))[i] = (int8_t) num;
 			break;
 		case RATTCONFDTNUM16:
-			num = config_setting_get_int_elem(sett, i);
+			if (config_setting_type(elem) != CONFIG_TYPE_INT) {
+				error("`%s' type mismatch; should be numeric",
+				    config_setting_name(sett));
+				return FAIL;
+			}
+			num = config_setting_get_int(elem);
 			retval = decl_check_num(decl, num);
 			if (retval != OK) {
 				debug("decl_check_num() failed");
@@ -228,7 +249,12 @@ static int decl_parse_list(conf_decl_t *decl, config_setting_t *sett)
 				(*(decl->val.lst.num16))[i] = (int16_t) num;
 			break;
 		case RATTCONFDTNUM32:
-			num = config_setting_get_int_elem(sett, i);
+			if (config_setting_type(elem) != CONFIG_TYPE_INT) {
+				error("`%s' type mismatch; should be numeric",
+				    config_setting_name(sett));
+				return FAIL;
+			}
+			num = config_setting_get_int(elem);
 			retval = decl_check_num(decl, num);
 			if (retval != OK) {
 				debug("decl_check_num() failed");

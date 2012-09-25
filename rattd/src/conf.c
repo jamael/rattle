@@ -184,7 +184,6 @@ static int decl_defval_list(conf_decl_t *decl)
 		return FAIL;
 	}
 
-	notice("`%s' not found, using default list", decl->path);
 	for (i = 0; i < maxcnt; ++i) {
 		switch (decl->datatype) {
 		case RATTCONFDTSTR:
@@ -469,6 +468,8 @@ int conf_table_parse(conf_decl_t *conftable)
 			/* use default, then. */
 			if (decl->flags & RATTCONFFLLST) {
 				/* uh oh; a list of default */
+				notice("`%s' not found, using default",
+				    decl->path);
 				decl_defval_list(decl);
 				continue;
 			}

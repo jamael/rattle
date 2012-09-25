@@ -468,7 +468,7 @@ int conf_table_parse(conf_decl_t *conftable)
 			/* use default, then. */
 			if (decl->flags & RATTCONFFLLST) {
 				/* uh oh; a list of default */
-				notice("`%s' not found, using default",
+				warning("`%s' not found, using default",
 				    decl->path);
 				decl_defval_list(decl);
 				continue;
@@ -476,7 +476,7 @@ int conf_table_parse(conf_decl_t *conftable)
 
 			switch (decl->datatype) {
 			case RATTCONFDTSTR:
-				notice("`%s' not found, using `%s'",
+				warning("`%s' not found, using `%s'",
 				    decl->path, decl->defval.str);
 				retval = decl_strdup(decl, decl->defval.str);
 				if (retval != OK) {

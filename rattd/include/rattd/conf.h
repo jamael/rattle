@@ -21,17 +21,17 @@ struct conf_decl {
 	char const *path;		/* absolute path of declaration */
 	char const *desc;		/* description */
 
-	size_t lstcnt;			/* count of elements in list */
 	union {
 		char const *str;	/* string */
-		long long num;		/* numeric */
+		uint32_t const num;	/* numeric */
 		union {
 			/* string */
 			char const *str[RATTCONFLSTSIZ];
 			/* numeric */
-			long long const *num[RATTCONFLSTSIZ];
+			uint32_t const num[RATTCONFLSTSIZ];
 		} lst;	/* fixed length array */
 	} defval;	/* default value */
+	size_t defval_lstcnt;	/* count of elements in list */
 
 	union {
 		char **str;		/* string pointer */
@@ -53,6 +53,7 @@ struct conf_decl {
 			uint32_t **num32u;
 		} lst;	/* variable length array */
 	} val;		/* config value */
+	size_t val_lstcnt;	/* count of elements in list */
 
 	enum RATTCONFDT datatype;	/* type of data */
 	unsigned int flags;		/* optional flags */

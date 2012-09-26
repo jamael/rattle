@@ -2,6 +2,7 @@
 #define RATTD_CONF_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 enum RATTCONFDT {	/* data type */
 	RATTCONFDTSTR,	/* string */
@@ -58,5 +59,8 @@ struct conf_decl {
 	enum RATTCONFDT datatype;	/* type of data */
 	unsigned int flags;		/* optional flags */
 };
+
+int conf_table_parse(conf_decl_t *);
+void conf_table_release(conf_decl_t *);
 
 #endif /* RATTD_CONF_H */

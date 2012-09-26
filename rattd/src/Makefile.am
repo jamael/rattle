@@ -3,5 +3,5 @@
 #
 
 sbin_PROGRAMS = rattd
-rattd_SOURCES = rattd.c conf.c
+rattd_SOURCES = rattd.c conf.c main.c dtor.c
 rattd_LDFLAGS = @libconfig_LIBS@

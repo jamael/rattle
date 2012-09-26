@@ -26,128 +26,66 @@
  */
 
 
-#include <limits.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 
+#include <rattd/conf.h>
 #include <rattd/def.h>
 #include <rattd/log.h>
-#include <rattd/conf.h>
 
 #include "conf.h"
+#include "dtor.h"
 
-#ifndef RATTD_VERSION
-#define RATTD_VERSION VERSION	/* from configure.ac */
-#endif
-
-#ifndef CONFFILEPATH
-#define CONFFILEPATH "/etc/rattle/rattd.conf"
-#endif
-
-conf_decl_t *g_conf = NULL;
-static char l_conffile[PATH_MAX] = { '\0' };
-
-static char *l_conf_listen = NULL;
+static char **l_conf_listen_lst = NULL;
 static char *l_conf_proto = NULL;
 static uint16_t *l_conf_port = NULL;
 static char **l_conf_mod_socket_lst = NULL;
 
 static conf_decl_t l_conftable[] = {
-	{ "listen", "listen on the specified FQDN or IP address\0",
-	    .defval.str = "localhost\0", .val.str = &l_conf_listen, 
-	    .datatype = RATTCONFDTSTR },
-	{ "proto", "use specified transport protocol\0",
+	{ "rattd/listen",
+	    "list of IP or FQDN to listen on\0",
+	    .defval.lst.str = { "localhost\0" }, .defval_lstcnt = 1,
+	    .val.lst.str = &l_conf_listen_lst,
+	    .datatype = RATTCONFDTSTR, .flags = RATTCONFFLLST },
+	{ "rattd/proto",
+	    "use specified transport protocol\0",
 	    .defval.str = "tcp\0", .val.str = &l_conf_proto,
 	    .datatype = RATTCONFDTSTR },
-	{ "port", "bind to the specified port\0",
+	{ "rattd/port",
+	    "bind to the specified port\0",
 	    .defval.num = 2194, .val.num = (long long *)&l_conf_port,
 	    .datatype = RATTCONFDTNUM16, .flags = RATTCONFFLUNS },
-	{ "socket/module", "load specified modules for socket operation\0",
-	    .defval.lst.str = { "unix\0", "test\0" }, .defval_lstcnt = 2,
+	{ "rattd/socket/module",
+	    "load specified modules for socket operation\0",
+	    .defval.lst.str = { "unix\0", "winsock\0" }, .defval_lstcnt = 2,
 	    .val.lst.str = &l_conf_mod_socket_lst,
 	    .datatype = RATTCONFDTSTR, .flags = RATTCONFFLLST },
 
-	{ NULL },
+	{ NULL }
 };
 
-static int parse_argv_opts(int argc, char * const argv[])
+void rattd_fini(void *udata)
 {
-	int c;
+	LOG_TRACE;
+	conf_table_release(l_conftable);
+}
 
-	while ((c = getopt(argc, argv, "f:")) != -1)
-	{
-		switch (c)
-		{
-			case 'f':	/* explicit config file */
-				if (strlen(optarg) >= PATH_MAX) {
-					error("%s: path is too long", optarg);
-					return FAIL;
-				} else {
-					strcpy(l_conffile, optarg);
-					l_conffile[PATH_MAX-1] = '\0';
-				}
-				break;
-		}
+int rattd_init(void)
+{
+	LOG_TRACE;
+	int retval;
+
+	retval = conf_table_parse(l_conftable);
+	if (retval != OK) {
+		debug("conf_table_parse() failed");
+		return FAIL;
+	}
+
+	retval = dtor_register(rattd_fini, NULL);
+	if (retval != OK) {
+		debug("dtor_register() failed");
+		rattd_fini(NULL);
+		return FAIL;
 	}
 
 	return OK;
-}
-
-static int load_config()
-{
-	int retval;
-	size_t n;
-	if (*l_conffile == '\0') {
-		if ((n = strlen(CONFFILEPATH)) >= PATH_MAX) {
-			error("default configuration path is too long");
-			debug("CONFFILEPATH exceeds PATH_MAX by %i byte(s)",
-			    n - PATH_MAX + 1);
-			return FAIL;
-		}
-		strcpy(l_conffile, CONFFILEPATH);
-		l_conffile[PATH_MAX-1] = '\0';
-	}
-	notice("configuring from `%s'", l_conffile);
-	retval = conf_open(l_conffile);
-	return (retval == OK) ? OK : FAIL;
-}
-
-static void show_startup_notice()
-{
-	fprintf(stdout,
-	    "The RATTLE daemon is waking up!\n"
-	    "rattd version %s\n"
-	    "\n", RATTD_VERSION);
-}
-
-int main(int argc, char * const argv[])
-{
-	show_startup_notice();
-
-	if (parse_argv_opts(argc, argv) != OK) {
-		debug("parse_argv_opts() failed");
-		exit(1);
-	}
-
-	if (conf_init() != OK) {
-		debug("conf_init() failed");
-		exit(1);
-	}
-
-	if (load_config() != OK) {
-		debug("load_config() failed");
-		exit(1);
-	}
-
-	conf_table_parse(l_conftable);
-
-	// launch dispatcher
-
-	conf_table_release(l_conftable);
-	conf_fini();
-	return 0;
 }

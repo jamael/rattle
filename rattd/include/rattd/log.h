@@ -14,4 +14,6 @@
 #define debug(fmt, args...) while (0) { /* empty */ }
 #endif
 
+#define LOG_TRACE debug("entering %s", __func__)
+
 #endif /* RATTD_LOG_H */

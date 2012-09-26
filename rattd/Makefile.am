@@ -2,4 +2,4 @@
 # Makefile.am
 #
 
-SUBDIRS = include src modules
+SUBDIRS = include src

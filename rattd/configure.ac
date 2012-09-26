@@ -40,8 +40,5 @@ AC_SUBST(AM_CPPFLAGS)
 AC_CONFIG_FILES([Makefile
 		include/Makefile
 		include/rattd/Makefile
-		src/Makefile
-		modules/Makefile
-		modules/logger/Makefile
-		modules/logger/std/Makefile])
+		src/Makefile])
 AC_OUTPUT

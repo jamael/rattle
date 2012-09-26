@@ -60,7 +60,4 @@ struct conf_decl {
 	unsigned int flags;		/* optional flags */
 };
 
-int conf_table_parse(conf_decl_t *);
-void conf_table_release(conf_decl_t *);
-
 #endif /* RATTD_CONF_H */

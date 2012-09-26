@@ -488,10 +488,10 @@ int conf_table_parse(conf_decl_t *conftable)
 			case RATTCONFDTNUM16:
 			case RATTCONFDTNUM32:
 				if (decl->flags & RATTCONFFLUNS)
-					notice("`%s' not found, using `%u'",
+					warning("`%s' not found, using `%u'",
 					    decl->path, decl->defval.num);
 				else
-					notice("`%s' not found, using `%i'",
+					warning("`%s' not found, using `%i'",
 					    decl->path, decl->defval.num);
 				*(decl->val.num) = decl->defval.num;
 				break;

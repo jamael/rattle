@@ -58,18 +58,19 @@ static char **l_conf_mod_socket_lst = NULL;
 
 static conf_decl_t l_conftable[] = {
 	{ "listen", "listen on the specified FQDN or IP address\0",
-	    .defval.str = "localhost\0", .val.str = &l_conf_listen,
-	    RATTCONFDTSTR, 0 },
+	    .defval.str = "localhost\0", .val.str = &l_conf_listen, 
+	    .datatype = RATTCONFDTSTR },
 	{ "proto", "use specified transport protocol\0",
 	    .defval.str = "tcp\0", .val.str = &l_conf_proto,
-	    RATTCONFDTSTR, 0 },
+	    .datatype = RATTCONFDTSTR },
 	{ "port", "bind to the specified port\0",
-	    .defval.num = 2194, .val.lst.num16u = &l_conf_port,
-	    RATTCONFDTNUM16, RATTCONFFLUNS|RATTCONFFLLST },
+	    .defval.num = 2194, .val.num = (long long *)&l_conf_port,
+	    .datatype = RATTCONFDTNUM16, .flags = RATTCONFFLUNS },
 	{ "socket/module", "load specified modules for socket operation\0",
-	    .defval.lst.str = { "unix\0", NULL },
+	    .defval.lst.str = { "unix\0", "test\0" }, .defval_lstcnt = 2,
 	    .val.lst.str = &l_conf_mod_socket_lst,
-	    RATTCONFDTSTR, RATTCONFFLLST },
+	    .datatype = RATTCONFDTSTR, .flags = RATTCONFFLLST },
+
 	{ NULL },
 };
 

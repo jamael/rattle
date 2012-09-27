@@ -3,7 +3,7 @@
 
 #include <rattd/conf.h>
 
-int conf_fini(void);
+void conf_fini(void *);
 int conf_init(void);
 int conf_open(const char *);
 int conf_table_parse(conf_decl_t *);

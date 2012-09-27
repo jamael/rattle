@@ -411,7 +411,7 @@ static int decl_parse(conf_decl_t *decl, config_setting_t *sett)
 
 int conf_open(const char *file)
 {
-	debug("entering %s", __func__);
+	LOG_TRACE;
 	if (config_read_file(&l_cfg, file) != CONFIG_TRUE) {
 		debug("config_read_file() failed");
 		error("%s at line %i", config_error_text(&l_cfg),
@@ -423,7 +423,7 @@ int conf_open(const char *file)
 
 void conf_table_release(conf_decl_t *conftable)
 {
-	debug("entering %s", __func__);
+	LOG_TRACE;
 	conf_decl_t *decl = NULL;
 	int i = 0;
 
@@ -453,7 +453,7 @@ void conf_table_release(conf_decl_t *conftable)
 
 int conf_table_parse(conf_decl_t *conftable)
 {
-	debug("entering %s", __func__);
+	LOG_TRACE;
 	conf_decl_t *decl = NULL;
 	config_setting_t *sett = NULL;
 	int retval, i = 0;
@@ -516,16 +516,15 @@ int conf_table_parse(conf_decl_t *conftable)
 	return OK;
 }
 
-int conf_fini(void)
+void conf_fini(void *udata)
 {
-	debug("entering %s", __func__);
+	LOG_TRACE;
 	config_destroy(&l_cfg);
-	return OK;
 }
 
 int conf_init(void)
 {
-	debug("entering %s", __func__);
+	LOG_TRACE;
 	config_init(&l_cfg);
 	return OK;
 }

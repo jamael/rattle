@@ -49,7 +49,7 @@ static int l_dtortable_index = -1;	/* destructor table index */
 static uint16_t l_conf_dtortable_size = 0;	/* destructor table size */
 static conf_decl_t l_conftable[] = {
 	{ "destructor/table-size",
-	    "set the fixed size of the destructor register\0",
+	    "set the fixed size of the destructor register",
 	    .defval.num = 64, .val.num = (long long *)&l_conf_dtortable_size,
 	    .datatype = RATTCONFDTNUM16, .flags = RATTCONFFLUNS },
 	{ NULL }

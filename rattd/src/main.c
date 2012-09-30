@@ -39,6 +39,7 @@
 
 #include "conf.h"
 #include "dtor.h"
+#include "log.h"
 #include "rattd.h"
 
 #ifndef RATTD_VERSION
@@ -111,8 +112,6 @@ static void fini(void)
 
 	/* release config resource */
 	conf_fini(NULL);
-
-//	log_fini();
 }
 
 int main(int argc, char * const argv[])
@@ -120,17 +119,6 @@ int main(int argc, char * const argv[])
 	int retval;
 
 	show_startup_notice();	
-
-	/* log_init first */
-
-	/* register main destructor */
-	retval = atexit(fini);
-	if (retval != 0) {
-		error("cannot register main destructor");
-		debug("atexit() returns %i", retval);
-//		log_fini();
-		exit(1);
-	}
 
 	/* parse command line arguments */
 	if (parse_argv_opts(argc, argv) != OK) {
@@ -147,6 +135,26 @@ int main(int argc, char * const argv[])
 	/* initialize global destructor register */
 	if (dtor_init() != OK) {
 		debug("dtor_init() failed");
+		conf_fini(NULL);
+		exit(1);
+	}
+
+	/* register main destructor */
+	retval = atexit(fini);
+	if (retval != 0) {
+		error("cannot register main destructor");
+		debug("atexit() returns %i", retval);
+		dtor_fini(NULL);
+		conf_fini(NULL);
+		exit(1);
+	}
+
+	/* From now on, finish functions (_fini)
+	   must register with dtor_register(). */ 
+
+	/* set logger */
+	if (log_init() != OK) {
+		debug("log_init() failed");
 		exit(1);
 	}
 

@@ -26,17 +26,76 @@
  */
 
 
-#include <rattle/def.h>
-#include <rattle/log.h>
+#include <stdarg.h>
+#include <stdio.h>
 
-//ratt_module_pool_t *l_pool_log
+#include <rattd/conf.h>
+#include <rattd/def.h>
+#include <rattd/log.h>
 
-int log_fini(void)
+#include "conf.h"
+#include "dtor.h"
+
+static int l_verbose = LOGMAX;	/* default to maximum verbose */
+
+static char *l_conf_verbose = NULL;
+static conf_decl_t l_conftable[] = {
+	{ "logger/verbose", "level of verbosity",
+	    .defval.str = "notice", .val.str = &l_conf_verbose,
+	    .datatype = RATTCONFDTSTR },
+
+	{ NULL }
+};
+
+void log_msg(int level, const char *fmt, ...)
 {
-	/* empty */
+	va_list ap;
+
+	/* honor verbose level */
+	if (level > l_verbose)
+		return;
+
+	va_start(ap, fmt);
+	/* if there is modules attached, use them */
+
+	/* else, default to stdout/stderr logging */
+	if (level == LOGERR)
+		vfprintf(stderr, fmt, ap);
+	else
+		vfprintf(stdout, fmt, ap);
+	va_end(ap);
+}
+
+void log_fini(void *udata)
+{
+	LOG_TRACE;
+	conf_table_release(l_conftable);
 }
 
 int log_init(void)
 {
-//	ratt_module_open("/usr/local/lib/rattd/log_std.so");
+	LOG_TRACE;
+	int retval;
+
+	retval = conf_table_parse(l_conftable);
+	if (retval != OK) {
+		debug("conf_table_parse() failed");
+		return FAIL;
+	}
+
+	retval = log_name_to_level(l_conf_verbose);
+	if (retval < LOGMAX) {
+		notice("switching to verbose level `%s'", l_conf_verbose);
+		l_verbose = retval;
+	} else
+		warning("unknown verbose level `%s'", l_conf_verbose);
+
+	retval = dtor_register(log_fini, NULL);
+	if (retval != OK) {
+		debug("dtor_register() failed");
+		log_fini(NULL);
+		return FAIL;
+	}
+
+	return OK;
 }

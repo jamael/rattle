@@ -58,11 +58,12 @@ void log_msg(int level, const char *fmt, ...)
 	va_start(ap, fmt);
 	/* if there is modules attached, use them */
 
-	/* else, default to stdout/stderr logging */
-	if (level == LOGERR)
+	/* else, default to std logging */
+	if (level == LOGERR) {
 		vfprintf(stderr, fmt, ap);
-	else
+	} else
 		vfprintf(stdout, fmt, ap);
+
 	va_end(ap);
 }
 

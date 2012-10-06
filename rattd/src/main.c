@@ -109,8 +109,6 @@ static void fini(void)
 	/* callback registered destructor and finish */
 	dtor_callback();
 	dtor_fini(NULL);
-
-	/* release config resource */
 	conf_fini(NULL);
 }
 

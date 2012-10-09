@@ -104,7 +104,7 @@ static void show_startup_notice()
 
 static void fini(void)
 {
-	LOG_TRACE;
+	RATTLOG_TRACE();
 
 	/* callback registered destructor and finish */
 	dtor_callback();

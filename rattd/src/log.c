@@ -28,6 +28,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <time.h>
 
 #include <rattd/conf.h>
 #include <rattd/def.h>
@@ -36,7 +37,7 @@
 #include "conf.h"
 #include "dtor.h"
 
-static int l_verbose = LOGMAX;	/* default to maximum verbose */
+static int l_verbose = RATTLOGMAX;	/* default to maximum verbose */
 
 static char *l_conf_verbose = NULL;
 static conf_decl_t l_conftable[] = {
@@ -47,9 +48,14 @@ static conf_decl_t l_conftable[] = {
 	{ NULL }
 };
 
+#define TIMESTRSIZ 21	/* %d %b %Y %T + \0 */
 void log_msg(int level, const char *fmt, ...)
 {
 	va_list ap;
+	FILE *out = stdout;
+	char timestr[TIMESTRSIZ] = { '\0' };
+	struct tm tmres;
+	time_t now;
 
 	/* honor verbose level */
 	if (level > l_verbose)
@@ -59,23 +65,31 @@ void log_msg(int level, const char *fmt, ...)
 	/* if there is modules attached, use them */
 
 	/* else, default to std logging */
-	if (level == LOGERR) {
-		vfprintf(stderr, fmt, ap);
-	} else
-		vfprintf(stdout, fmt, ap);
+	if (level == RATTLOGERR)
+		out = stderr;
 
+	/* datetime prefix */
+	if (((now = time(NULL)) != (time_t) -1)
+	    && (localtime_r(&now, &tmres) != NULL)
+	    && (strftime(timestr, TIMESTRSIZ, "%d %b %Y %T", &tmres) > 0))
+		fprintf(out, "[%s] ", timestr);
+
+	/* level name prefix */
+	fprintf(out, "%s: ", rattlog_level_to_name(level));
+
+	vfprintf(out, fmt, ap);
 	va_end(ap);
 }
 
 void log_fini(void *udata)
 {
-	LOG_TRACE;
+	RATTLOG_TRACE();
 	conf_table_release(l_conftable);
 }
 
 int log_init(void)
 {
-	LOG_TRACE;
+	RATTLOG_TRACE();
 	int retval;
 
 	retval = conf_table_parse(l_conftable);
@@ -84,8 +98,8 @@ int log_init(void)
 		return FAIL;
 	}
 
-	retval = log_name_to_level(l_conf_verbose);
-	if (retval < LOGMAX) {
+	retval = rattlog_name_to_level(l_conf_verbose);
+	if (retval < RATTLOGMAX) {
 		notice("switching to verbose level `%s'", l_conf_verbose);
 		l_verbose = retval;
 	} else

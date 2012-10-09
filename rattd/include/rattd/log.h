@@ -4,53 +4,55 @@
 #include <stdio.h>
 #include <string.h>
 
-enum LOGLEVEL {
-	LOGERR = 0,	/* error */
-	LOGWAR,		/* warning */
-	LOGNOT,		/* notice */
+enum RATTLOGLEVEL {
+	RATTLOGERR = 0,	/* error */
+	RATTLOGWAR,	/* warning */
+	RATTLOGNOT,	/* notice */
 #ifdef DEBUG
-	LOGDBG,		/* debug */
-	LOGTRA,		/* trace */
+	RATTLOGDBG,	/* debug */
+	RATTLOGTRA,	/* trace */
 #endif
-
-	LOGMAX		/* count; must be last */
+	RATTLOGMAX	/* count; must be last */
 };
 
-static inline int log_name_to_level(const char *name)
+static const char *rattlog_level_name[RATTLOGMAX] = {
+	/* exact same order as in RATTLOGLEVEL */
+	"error", "warning", "notice",
+#ifdef DEBUG
+	"debug", "trace",
+#endif
+};
+
+static inline int rattlog_name_to_level(const char *name)
 {
 	int i;
-	const char *trsl[LOGMAX] = {
-	/* exact same order as in LOGLEVEL */
-		"error", "warning", "notice",
-#ifdef DEBUG
-		"debug", "trace",
-#endif
-	};
+	for (i = RATTLOGERR; i < RATTLOGMAX; ++i)
+		if (strcmp(name, rattlog_level_name[i]) == 0)
+			return i;
 
-	for (i = 0; i < LOGMAX; ++i)
-		if (strcmp(name, trsl[i]) == 0)
-			break;
-
-	return i;	/* LOGMAX if none found */
+	return RATTLOGMAX;	/* RATTLOGMAX if none found */
 }
 
-void log_msg(int, const char *, ...);
+static inline const char *rattlog_level_to_name(int level)
+{
+	if (level >= RATTLOGERR && level < RATTLOGMAX)
+		return rattlog_level_name[level];
+	return "unknown";
+}
 
-#define notice(fmt, args...) \
-    log_msg(LOGNOT, "notice: " fmt "\n" , ## args)
-#define warning(fmt, args...) \
-    log_msg(LOGWAR, "warning: " fmt "\n" , ## args)
-#define error(fmt, args...) \
-    log_msg(LOGERR, "error: " fmt "\n" , ## args)
+extern void log_msg(int, const char *, ...);
+
+#define notice(fmt, args...) log_msg(RATTLOGNOT, fmt "\n" , ## args)
+#define warning(fmt, args...) log_msg(RATTLOGWAR, fmt "\n" , ## args)
+#define error(fmt, args...) log_msg(RATTLOGERR, fmt "\n" , ## args)
 
 #ifdef DEBUG
 #define debug(fmt, args...) \
-    log_msg(LOGDBG, "debug: <%s:%i> " fmt "\n", __FILE__, __LINE__ , ## args)
-#define LOG_TRACE \
-    log_msg(LOGTRA, "trace: entering %s\n", __func__)
+    log_msg(RATTLOGDBG, "<%s:%i> " fmt "\n", __FILE__, __LINE__ , ## args)
+#define RATTLOG_TRACE() log_msg(RATTLOGTRA, "entering %s\n", __func__)
 #else
 #define debug(fmt, args...) while (0) { /* empty */ }
-#define LOG_TRACE
+#define RATTLOG_TRACE()
 #endif
 
 #endif /* RATTD_LOG_H */

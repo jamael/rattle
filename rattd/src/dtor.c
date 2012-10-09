@@ -57,7 +57,7 @@ static conf_decl_t l_conftable[] = {
 
 void dtor_unregister(void (*dtor)(void *udata))
 {
-	LOG_TRACE;
+	RATTLOG_TRACE();
 	dtor_table_t *p = NULL;
 	int i;
 
@@ -74,7 +74,7 @@ void dtor_unregister(void (*dtor)(void *udata))
 
 int dtor_register(void (*dtor)(void *udata), void *udata)
 {
-	LOG_TRACE;
+	RATTLOG_TRACE();
 	dtor_table_t *p = NULL;
 	if ((l_dtortable_index + 1) >= l_conf_dtortable_size) {
 		error("destructor table is full with `%i' callbacks",
@@ -95,7 +95,7 @@ int dtor_register(void (*dtor)(void *udata), void *udata)
 
 void dtor_callback(void)
 {
-	LOG_TRACE;
+	RATTLOG_TRACE();
 	dtor_table_t *p = NULL;
 	int i;
 
@@ -108,7 +108,7 @@ void dtor_callback(void)
 
 void dtor_fini(void *udata)
 {
-	LOG_TRACE;
+	RATTLOG_TRACE();
 	conf_table_release(l_conftable);
 	debug("releasing destructor register table");
 	free(l_dtortable);
@@ -116,7 +116,7 @@ void dtor_fini(void *udata)
 
 int dtor_init(void)
 {
-	LOG_TRACE;
+	RATTLOG_TRACE();
 	int retval;
 
 	retval = conf_table_parse(l_conftable);

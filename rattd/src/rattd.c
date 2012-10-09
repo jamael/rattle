@@ -65,13 +65,13 @@ static conf_decl_t l_conftable[] = {
 
 void rattd_fini(void *udata)
 {
-	LOG_TRACE;
+	RATTLOG_TRACE();
 	conf_table_release(l_conftable);
 }
 
 int rattd_init(void)
 {
-	LOG_TRACE;
+	RATTLOG_TRACE();
 	int retval;
 
 	retval = conf_table_parse(l_conftable);

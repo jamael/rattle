@@ -22,6 +22,9 @@ AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT8_T
 
+# Checks for dynamic library loader
+LT_LIB_DLLOAD
+
 # Use libconfig for configuration file syntax
 PKG_CHECK_MODULES([libconfig], [libconfig >= 1.3],,
   AC_MSG_ERROR([libconfig 1.3 or newer not found.])
@@ -40,5 +43,8 @@ AC_SUBST(AM_CPPFLAGS)
 AC_CONFIG_FILES([Makefile
 		include/Makefile
 		include/rattd/Makefile
+		modules/Makefile
+		modules/logger/Makefile
+		modules/logger/std/Makefile
 		src/Makefile])
 AC_OUTPUT

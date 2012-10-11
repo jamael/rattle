@@ -40,6 +40,7 @@
 #include "conf.h"
 #include "dtor.h"
 #include "log.h"
+#include "module.h"
 #include "rattd.h"
 
 #ifndef RATTD_VERSION
@@ -149,6 +150,12 @@ int main(int argc, char * const argv[])
 
 	/* From now on, finish functions (_fini)
 	   must register with dtor_register(). */ 
+
+	/* initialize modules */
+	if (module_init() != OK) {
+		debug("module_init() failed");
+		exit(1);
+	}
 
 	/* set logger */
 	if (log_init() != OK) {

@@ -55,6 +55,7 @@ struct conf_decl {
 		} lst;	/* variable length array */
 	} val;		/* config value */
 	size_t val_lstcnt;	/* count of elements in list */
+	size_t *val_cnt;	/* count of values for user */
 
 	enum RATTCONFDT datatype;	/* type of data */
 	unsigned int flags;		/* optional flags */

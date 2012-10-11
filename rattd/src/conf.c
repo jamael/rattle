@@ -162,6 +162,9 @@ static int decl_alloc_list(conf_decl_t *decl, size_t len)
 	}
 
 	decl->val_lstcnt = len;
+	if (decl->val_cnt) /* user also wants to know */
+		*(decl->val_cnt) = len;
+
 	return OK;
 }
 
@@ -406,6 +409,10 @@ static int decl_parse(conf_decl_t *decl, config_setting_t *sett)
 		return FAIL;
 
 	}
+
+	if (decl->val_cnt) /* user also wants to know */
+		*(decl->val_cnt) = 1;
+
 	return OK;
 }
 

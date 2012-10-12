@@ -30,9 +30,9 @@
 #include <stdio.h>
 #include <time.h>
 
-#include <rattd/conf.h>
-#include <rattd/def.h>
-#include <rattd/log.h>
+#include <rattle/conf.h>
+#include <rattle/def.h>
+#include <rattle/log.h>
 
 #include "conf.h"
 #include "dtor.h"
@@ -49,7 +49,7 @@ static conf_decl_t l_conftable[] = {
 };
 
 #define TIMESTRSIZ 21	/* %d %b %Y %T + \0 */
-void log_msg(int level, const char *fmt, ...)
+void rattlog_msg(int level, const char *fmt, ...)
 {
 	va_list ap;
 	FILE *out = stdout;

@@ -26,7 +26,6 @@
  */
 
 
-#include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -34,8 +33,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <rattd/def.h>
-#include <rattd/log.h>
+#include <rattle/def.h>
+#include <rattle/log.h>
 
 #include "conf.h"
 #include "dtor.h"
@@ -109,7 +108,6 @@ static void fini(void)
 
 	/* callback registered destructor and finish */
 	dtor_callback();
-	dtor_fini(NULL);
 	conf_fini(NULL);
 }
 

@@ -31,9 +31,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <rattd/def.h>
-#include <rattd/conf.h>
-#include <rattd/log.h>
+#include <rattle/def.h>
+#include <rattle/conf.h>
+#include <rattle/log.h>
 
 static struct config_t l_cfg;
 
@@ -128,7 +128,7 @@ static void decl_release_list(conf_decl_t *decl)
 			break;
 		}
 	}
-	debug("releasing memory chunck for `%s'", decl->path);
+	debug("releasing memory chunk for `%s'", decl->path);
 	free(*(decl->val.lst.str));
 }
 

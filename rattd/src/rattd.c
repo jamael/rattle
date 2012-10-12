@@ -28,38 +28,55 @@
 
 #include <stdint.h>
 
-#include <rattd/conf.h>
-#include <rattd/def.h>
-#include <rattd/log.h>
+#include <rattle/conf.h>
+#include <rattle/def.h>
+#include <rattle/log.h>
 
 #include "conf.h"
 #include "dtor.h"
 
+#ifndef RATTD_LISTEN
+#define RATTD_LISTEN "any"
+#define RATTD_LISTEN_COUNT 1
+#elif !defined RATTD_LISTEN_COUNT
+#error "RATTD_LISTEN requires RATTD_LISTEN_COUNT"
+#endif
 static char **l_conf_listen_lst = NULL;
-static char *l_conf_proto = NULL;
-static uint16_t *l_conf_port = NULL;
-static char **l_conf_mod_socket_lst = NULL;
+static size_t l_conf_listen_cnt = 0;
+
+#ifndef RATTD_PROTO
+#define RATTD_PROTO "udp", "tcp"
+#define RATTD_PROTO_COUNT 2
+#elif !defined RATTD_PROTO_COUNT
+#error "RATTD_PROTO requires RATTD_PROTO_COUNT"
+#endif
+static char **l_conf_proto_lst = NULL;
+static size_t l_conf_proto_cnt = 0;
+
+#ifndef RATTD_PORT
+#define RATTD_PORT 2194
+#endif
+static uint16_t l_conf_port = 0;
 
 static conf_decl_t l_conftable[] = {
-	{ "rattd/listen",
+	{ "listen",
 	    "list of IP or FQDN to listen on",
-	    .defval.lst.str = { "localhost" }, .defval_lstcnt = 1,
+	    .defval.lst.str = { RATTD_LISTEN },
+	    .defval_lstcnt = RATTD_LISTEN_COUNT,
 	    .val.lst.str = &l_conf_listen_lst,
+	    .val_cnt = &l_conf_listen_cnt,
 	    .datatype = RATTCONFDTSTR, .flags = RATTCONFFLLST },
-	{ "rattd/proto",
-	    "use specified transport protocol",
-	    .defval.str = "tcp", .val.str = &l_conf_proto,
-	    .datatype = RATTCONFDTSTR },
-	{ "rattd/port",
+	{ "proto",
+	    "use the specified transport protocols",
+	    .defval.lst.str = { RATTD_PROTO },
+	    .defval_lstcnt = RATTD_PROTO_COUNT,
+	    .val.lst.str = &l_conf_proto_lst,
+	    .val_cnt = &l_conf_proto_cnt,
+	    .datatype = RATTCONFDTSTR, .flags = RATTCONFFLLST },
+	{ "port",
 	    "bind to the specified port",
-	    .defval.num = 2194, .val.num = (long long *)&l_conf_port,
+	    .defval.num = RATTD_PORT, .val.num = (long long *)&l_conf_port,
 	    .datatype = RATTCONFDTNUM16, .flags = RATTCONFFLUNS },
-	{ "rattd/socket/module",
-	    "load specified modules for socket operation",
-	    .defval.lst.str = { "unix", "winsock" }, .defval_lstcnt = 2,
-	    .val.lst.str = &l_conf_mod_socket_lst,
-	    .datatype = RATTCONFDTSTR, .flags = RATTCONFFLLST },
-
 	{ NULL }
 };
 

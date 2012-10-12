@@ -1,7 +1,7 @@
 #ifndef SRC_CONF_H
 #define SRC_CONF_H
 
-#include <rattd/conf.h>
+#include <rattle/conf.h>
 
 void conf_fini(void *);
 int conf_init(void);

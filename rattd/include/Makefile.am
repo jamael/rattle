@@ -2,4 +2,4 @@
 # include/Makefile.am
 #
 
-SUBDIRS = rattd
+SUBDIRS = rattle

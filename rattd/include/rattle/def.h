@@ -1,5 +1,5 @@
-#ifndef RATTD_DEF_H
-#define RATTD_DEF_H
+#ifndef RATTLE_DEF_H
+#define RATTLE_DEF_H
 
 #include <limits.h>
 
@@ -10,4 +10,4 @@
 #define PATH_MAX 1024
 #endif
 
-#endif /* RATTD_DEF_H */
+#endif /* RATTLE_DEF_H */

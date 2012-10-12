@@ -1,5 +1,5 @@
-#ifndef RATTD_LOG_H
-#define RATTD_LOG_H
+#ifndef RATTLE_LOG_H
+#define RATTLE_LOG_H
 
 #include <stdio.h>
 #include <string.h>
@@ -40,19 +40,24 @@ static inline const char *rattlog_level_to_name(int level)
 	return "unknown";
 }
 
-extern void log_msg(int, const char *, ...);
+extern void rattlog_msg(int, const char *, ...);
 
-#define notice(fmt, args...) log_msg(RATTLOGNOT, fmt "\n" , ## args)
-#define warning(fmt, args...) log_msg(RATTLOGWAR, fmt "\n" , ## args)
-#define error(fmt, args...) log_msg(RATTLOGERR, fmt "\n" , ## args)
+#define notice(fmt, args...) rattlog_msg(RATTLOGNOT, fmt "\n" , ## args)
+#define warning(fmt, args...) rattlog_msg(RATTLOGWAR, fmt "\n" , ## args)
+#define error(fmt, args...) rattlog_msg(RATTLOGERR, fmt "\n" , ## args)
 
 #ifdef DEBUG
-#define debug(fmt, args...) \
-    log_msg(RATTLOGDBG, "<%s:%i> " fmt "\n", __FILE__, __LINE__ , ## args)
-#define RATTLOG_TRACE() log_msg(RATTLOGTRA, "entering %s\n", __func__)
+#define debug(fmt, args...) rattlog_msg(RATTLOGDBG, \
+    "<%s:%i> " fmt "\n", __FILE__, __LINE__ , ## args)
+#define RATTLOG_TRACE() rattlog_msg(RATTLOGTRA, \
+    "<%s:%i> entering %s\n", __FILE__, __LINE__, __func__)
 #else
 #define debug(fmt, args...) while (0) { /* empty */ }
 #define RATTLOG_TRACE()
 #endif
 
-#endif /* RATTD_LOG_H */
+typedef struct {
+	void (*on_msg)(int, const char *);
+} rattlog_hook_t;
+
+#endif /* RATTLE_LOG_H */

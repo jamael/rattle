@@ -1,5 +1,5 @@
-#ifndef RATTD_CONF_H
-#define RATTD_CONF_H
+#ifndef RATTLE_CONF_H
+#define RATTLE_CONF_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -61,4 +61,4 @@ struct conf_decl {
 	unsigned int flags;		/* optional flags */
 };
 
-#endif /* RATTD_CONF_H */
+#endif /* RATTLE_CONF_H */

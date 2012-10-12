@@ -10,9 +10,11 @@ enum RATTMODPT {	/* module path */
 };
 
 typedef struct {
-	const char * const name;	/* module name */
-	const char * const desc;	/* module description */
-	const char * const version;	/* module version */
+	void *handle;	/* module handle */
+
+	char const * const name;	/* module name */
+	char const * const desc;	/* module description */
+	char const * const version;	/* module version */
 
 	conf_decl_t *conftable;		/* config table */
 
@@ -29,5 +31,7 @@ typedef struct {
 	int const path;
 	int const path_version;
 } module_path_t;
+
+extern int rattmod_register(rattmod_entry_t *);
 
 #endif /* RATTLE_MODULE_H */

@@ -29,24 +29,19 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include <errno.h>
-#include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <rattd/conf.h>
-#include <rattd/def.h>
-#include <rattd/log.h>
-#include <rattd/module.h>
+#include <rattle/conf.h>
+#include <rattle/def.h>
+#include <rattle/log.h>
+#include <rattle/module.h>
 
 #include "conf.h"
 #include "dtor.h"
 
-typedef struct module_table module_table_t;
-static struct module_table {
-	void *handle;		/* dlopen handle */
-	rattmod_entry_t *entry;	/* module entry */
-} *l_modtable = NULL;
+static rattmod_entry_t **l_modtable = NULL;
 static int l_modtable_index = -1;	/* module table index */
 
 #ifndef RATTD_MODULE_PATH
@@ -79,35 +74,36 @@ static conf_decl_t l_conftable[] = {
 	{ NULL }
 };
 
-static int register_module(void *handle)
+static int register_module_handle(void *handle)
 {
-	module_table_t *p = NULL;
-	if ((l_modtable_index + 1) >= l_conf_modtable_size) {
-		error("module table is full with `%i' modules",
-		    l_modtable_index + 1);
-		notice("you might want to raise `module/table-size-init'");
-		debug("XXX: should realloc");
-		return FAIL;
-	} else if (!handle) {
-		debug("won't accept NULL handle");
-		return FAIL;
-	}
+	rattmod_entry_t *entry = l_modtable[l_modtable_index];
 
-	p = &(l_modtable[++l_modtable_index]);
-	p->handle = handle;
-	debug("registered module handle %p at %i", handle, l_modtable_index);
+	if (l_modtable_index < 0)
+		return FAIL;	/* until table api */
+
+	if (!handle) {
+		debug("NULL handle given");
+		return FAIL;
+	} else if (entry && entry->handle) {
+		debug("entry already got a handle");
+		return FAIL;
+	} else
+		entry->handle = handle;
 	return OK;
 }
 
 static int unload_modules()
 {
-	module_table_t *p = NULL;
+	rattmod_entry_t *entry = NULL;
 	int i;
 
+	if (l_modtable_index < 0)
+		return FAIL;	/* until table api */
+
 	i = l_modtable_index;
-	for (p = &(l_modtable[i]); i >= 0; p = &(l_modtable[--i]))
-		if (p->handle)
-			dlclose(p->handle);
+	for (entry = l_modtable[i]; i >= 0; entry = l_modtable[--i])
+		if (entry->handle)
+			dlclose(entry->handle);
 	return OK;
 }
 
@@ -117,7 +113,7 @@ static int load_modules()
 	struct dirent *entry = NULL;
 	void *handle = NULL;
 	char sofile[PATH_MAX] = { '\0' };
-	int i;
+	int retval, i;
 
 	for (i = 0; i < l_conf_modpath_cnt; ++i) {
 		debug("looking for modules inside `%s'",
@@ -136,18 +132,54 @@ static int load_modules()
 			    l_conf_modpath_lst[i], entry->d_name);
 
 			handle = dlopen(sofile, RTLD_LAZY);
-			if (handle) {
-				debug("loaded %s at %p",
-				    entry->d_name, handle);
-				register_module(handle);
-			} else
-				debug("failed loading %s", dlerror());
+			if (!handle) {
+				warning("`%s' is not a module", entry->d_name);
+				debug("dlopen() tells %s", dlerror());
+				continue;
+			}
+
+			retval = register_module_handle(handle);
+			if (retval != OK) {
+				warning("`%s' failed to register properly",
+				    entry->d_name);
+				debug("register_module_handle() failed");
+				dlclose(handle);
+				continue;
+			}
 		}
 
 		closedir(dir);
 	}
 	return OK;
 }
+
+int rattmod_register(rattmod_entry_t *entry)
+{
+	rattmod_entry_t **next = NULL;
+	if ((l_modtable_index + 1) >= l_conf_modtable_size) {
+		error("module table is full with `%i' modules",
+		    l_modtable_index + 1);
+		notice("you might want to raise `module/table-size-init'");
+		debug("XXX: should realloc");
+		return FAIL;
+	} else if (!entry) {
+		debug("NULL entry given");
+		return FAIL;
+	}
+
+	next = &(l_modtable[++l_modtable_index]);
+	if (!next) {
+		debug("could not get next slot");
+		return FAIL;
+	}
+
+	*next = entry;
+	debug("registered module entry %p, slot %i", entry, l_modtable_index);
+
+	return OK;
+}
+
+
 
 void module_fini(void *udata)
 {
@@ -168,7 +200,7 @@ int module_init(void)
 		return FAIL;
 	}
 
-	l_modtable = calloc(l_conf_modtable_size, sizeof(module_table_t));
+	l_modtable = calloc(l_conf_modtable_size, sizeof(rattmod_entry_t *));
 	if (l_modtable) {
 		debug("allocated module table of size `%u'",
 		    l_conf_modtable_size);

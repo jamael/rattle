@@ -44,6 +44,6 @@ AC_CONFIG_FILES([Makefile
 		include/rattle/Makefile
 		modules/Makefile
 		modules/logger/Makefile
-		modules/logger/std/Makefile
+		modules/logger/cons/Makefile
 		src/Makefile])
 AC_OUTPUT

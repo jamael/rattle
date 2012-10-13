@@ -101,8 +101,8 @@ void dtor_callback(void)
 void dtor_fini(void *udata)
 {
 	RATTLOG_TRACE();
-	conf_table_release(l_conftable);
 	ratt_table_destroy(&l_dtortable);
+	conf_table_release(l_conftable);
 }
 
 int dtor_init(void)

@@ -147,7 +147,7 @@ int ratt_table_create(ratt_table_t *table, size_t cnt, size_t size, int flags)
 	table->size = cnt;
 	table->pos = 0;
 	table->chunk_size = size;
-	table->flags = flags | RATTTABFLZER | 0x4;
+	table->flags = flags | RATTTABFLZER;
 
 	return OK;
 }

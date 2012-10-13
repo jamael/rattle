@@ -64,10 +64,8 @@ void dtor_unregister(void (*dtor)(void *udata))
 
 	RATT_TABLE_FOREACH(&l_dtortable, reg)
 	{
-		if (reg->dtor == dtor) {
-			reg->dtor = NULL;
-			reg->udata = NULL;
-		}
+		if (reg->dtor == dtor)
+			reg->dtor = reg->udata = NULL;
 	}
 }
 

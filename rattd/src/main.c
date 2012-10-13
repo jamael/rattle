@@ -108,6 +108,7 @@ static void fini(void)
 
 	/* callback registered destructor and finish */
 	dtor_callback();
+	dtor_fini(NULL);
 	conf_fini(NULL);
 }
 

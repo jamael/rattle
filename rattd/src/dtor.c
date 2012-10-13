@@ -32,25 +32,27 @@
 #include <rattle/conf.h>
 #include <rattle/def.h>
 #include <rattle/log.h>
+#include <rattle/table.h>
 
 #include "conf.h"
 
-#ifndef DTORTABSIZMIN
-#define DTORTABSIZMIN 16
-#endif
-
-typedef struct dtor_table dtor_table_t;
-static struct dtor_table {
+typedef struct {
 	void (*dtor)(void *);		/* destructor pointer */
 	void *udata;			/* destructor user data */
-} *l_dtortable = NULL;
-static int l_dtortable_index = -1;	/* destructor table index */
+} dtor_register_t;
 
+static RATT_TABLE_INIT(l_dtortable);	/* destructor table */
+
+#ifndef RATTD_DTOR_TABLESIZ
+#define RATTD_DTOR_TABLESIZ 16
+#endif
 static uint16_t l_conf_dtortable_size = 0;	/* destructor table size */
+
 static conf_decl_t l_conftable[] = {
 	{ "destructor/table-size-init",
 	    "set the initial size of the destructor table",
-	    .defval.num = 64, .val.num = (long long *)&l_conf_dtortable_size,
+	    .defval.num = RATTD_DTOR_TABLESIZ,
+	    .val.num = (long long *)&l_conf_dtortable_size,
 	    .datatype = RATTCONFDTNUM16, .flags = RATTCONFFLUNS },
 	{ NULL }
 };
@@ -58,16 +60,13 @@ static conf_decl_t l_conftable[] = {
 void dtor_unregister(void (*dtor)(void *udata))
 {
 	RATTLOG_TRACE();
-	dtor_table_t *p = NULL;
-	int i;
+	dtor_register_t *reg = NULL;
 
-	/* note that unregister does not free the slot;
-	   it just removes the pointer */
-	i = l_dtortable_index;
-	for (p = &(l_dtortable[i]); i >= 0; p = &(l_dtortable[--i])) {
-		if (p->dtor == dtor) {
-			p->dtor = NULL;
-			p->udata = NULL;
+	RATT_TABLE_FOREACH(&l_dtortable, reg)
+	{
+		if (reg->dtor == dtor) {
+			reg->dtor = NULL;
+			reg->udata = NULL;
 		}
 	}
 }
@@ -75,35 +74,29 @@ void dtor_unregister(void (*dtor)(void *udata))
 int dtor_register(void (*dtor)(void *udata), void *udata)
 {
 	RATTLOG_TRACE();
-	dtor_table_t *p = NULL;
-	if ((l_dtortable_index + 1) >= l_conf_dtortable_size) {
-		error("destructor table is full with `%i' callbacks",
-		    l_dtortable_index + 1);
-		notice("you might want to raise destructor/table-size-init");
-		debug("XXX: should realloc");
-		return FAIL;
-	} else if (!dtor) {
-		debug("NULL callback given");
+	dtor_register_t reg = { dtor, udata };
+	int retval;
+
+	retval = ratt_table_push(&l_dtortable, &reg);
+	if (retval != OK) {
+		debug("ratt_table_push() failed");
 		return FAIL;
 	}
 
-	p = &(l_dtortable[++l_dtortable_index]);
-	p->dtor = dtor;
-	p->udata = udata;
-	debug("registered destructor %p, slot %i", dtor, l_dtortable_index);
+	debug("registered destructor %p, slot %i",
+	    dtor, ratt_table_pos_last(&l_dtortable));
 	return OK;
 }
 
 void dtor_callback(void)
 {
 	RATTLOG_TRACE();
-	dtor_table_t *p = NULL;
-	int i;
+	dtor_register_t *reg = NULL;
 
-	i = l_dtortable_index;
-	for (p = &(l_dtortable[i]); i >= 0; p = &(l_dtortable[--i])) {
-		if (p->dtor)
-			p->dtor(p->udata);
+	RATT_TABLE_FOREACH_REVERSE(&l_dtortable, reg)
+	{
+		if (reg->dtor)
+			reg->dtor(reg->udata);
 	}
 }
 
@@ -111,7 +104,7 @@ void dtor_fini(void *udata)
 {
 	RATTLOG_TRACE();
 	conf_table_release(l_conftable);
-	free(l_dtortable);
+	ratt_table_destroy(&l_dtortable);
 }
 
 int dtor_init(void)
@@ -123,31 +116,19 @@ int dtor_init(void)
 	if (retval != OK) {
 		debug("conf_table_parse() failed");
 		return FAIL;
-	} else if (l_conf_dtortable_size <= DTORTABSIZMIN) {
-		error("destructor register of size `%i' "
-		    "is clearly not enough", l_conf_dtortable_size);
-		return FAIL;
 	}
-
-	l_dtortable = calloc(l_conf_dtortable_size, sizeof(dtor_table_t));
-	if (l_dtortable) {
+	
+	retval = ratt_table_create(&l_dtortable,
+	    l_conf_dtortable_size, sizeof(dtor_register_t), 0);
+	if (retval != OK) {
+		if (l_conf_dtortable_size < RATTTAB_MINSIZ)
+			error("destructor/table-size-init is too low");
+		debug("ratt_table_create() failed");
+		conf_table_release(l_conftable);
+		return FAIL;
+	} else
 		debug("allocated destructor table of size `%u'",
 		    l_conf_dtortable_size);
-	} else {
-		error("memory allocation failed");
-		debug("calloc() failed");
-		conf_table_release(l_conftable);
-		return FAIL;
-	}
-
-	retval = dtor_register(dtor_fini, NULL);
-	if (retval != OK) {
-		error("cannot register destructor");
-		debug("dtor_register() failed");
-		free(l_dtortable);
-		conf_table_release(l_conftable);
-		return FAIL;
-	}
 
 	return OK;
 }

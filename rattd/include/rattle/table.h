@@ -1,8 +1,9 @@
 #ifndef RATTLE_TABLE_H
 #define RATTLE_TABLE_H
 
-#define RATTTABFLZER	0x1	/* table is empty */
-#define RATTTABFLNRL	0x2	/* forbid realloc */
+#define RATTTABFLINI	0x1	/* table initialized */
+#define RATTTABFLZER	0x2	/* table is empty */
+#define RATTTABFLNRL	0x4	/* forbid realloc */
 
 /* minimum table size; cannot be lower than 2 */
 #define RATTTAB_MINSIZ 2
@@ -41,12 +42,12 @@ static inline void *ratt_table_last(ratt_table_t *table)
 
 #define RATT_TABLE_FOREACH(tab, chunk) \
 	for (chunk = (tab)->head, (tab)->pos = 0; \
-	    (!((tab)->flags & RATTTABFLZER)) \
+	    (((tab)->flags & (RATTTABFLZER|RATTTABFLINI)) == RATTTABFLINI) \
 	    && (void *) (chunk) <= (tab)->tail; (chunk)++, ((tab)->pos)++)
 
 #define RATT_TABLE_FOREACH_REVERSE(tab, chunk) \
 	for (chunk = (tab)->tail, (tab)->pos = (tab)->last; \
-	    (!((tab)->flags & RATTTABFLZER)) \
+	    (((tab)->flags & (RATTTABFLZER|RATTTABFLINI)) == RATTTABFLINI) \
 	    && (void *) (chunk) >= (tab)->head; (chunk)-- , ((tab)->pos)--)
 
 #define RATT_TABLE_INIT(tab) ratt_table_t (tab) = { 0 }

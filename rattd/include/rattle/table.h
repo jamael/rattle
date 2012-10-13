@@ -41,11 +41,13 @@ static inline void *ratt_table_last(ratt_table_t *table)
 
 #define RATT_TABLE_FOREACH(tab, chunk) \
 	for (chunk = (tab)->head, (tab)->pos = 0; \
-	    (void *) (chunk) <= (tab)->tail; (chunk)++, ((tab)->pos)++)
+	    (!((tab)->flags & RATTTABFLZER)) \
+	    && (void *) (chunk) <= (tab)->tail; (chunk)++, ((tab)->pos)++)
 
 #define RATT_TABLE_FOREACH_REVERSE(tab, chunk) \
 	for (chunk = (tab)->tail, (tab)->pos = (tab)->last; \
-	    (void *) (chunk) >= (tab)->head; (chunk)-- , ((tab)->pos)--)
+	    (!((tab)->flags & RATTTABFLZER)) \
+	    && (void *) (chunk) >= (tab)->head; (chunk)-- , ((tab)->pos)--)
 
 #define RATT_TABLE_INIT(tab) ratt_table_t (tab) = { 0 }
 

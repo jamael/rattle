@@ -37,12 +37,12 @@
 #include <rattle/def.h>
 #include <rattle/log.h>
 #include <rattle/module.h>
+#include <rattle/table.h>
 
 #include "conf.h"
 #include "dtor.h"
 
-static rattmod_entry_t **l_modtable = NULL;
-static int l_modtable_index = -1;	/* module table index */
+static RATT_TABLE_INIT(l_modtable);	/* module table */
 
 #ifndef RATTD_MODULE_PATH
 #define RATTD_MODULE_PATH "/usr/lib/rattd", "/usr/local/lib/rattd"
@@ -76,34 +76,27 @@ static conf_decl_t l_conftable[] = {
 
 static int register_module_handle(void *handle)
 {
-	rattmod_entry_t *entry = l_modtable[l_modtable_index];
+	rattmod_entry_t *entry = NULL;
 
-	if (l_modtable_index < 0)
-		return FAIL;	/* until table api */
-
-	if (!handle) {
-		debug("NULL handle given");
-		return FAIL;
-	} else if (entry && entry->handle) {
-		debug("entry already got a handle");
-		return FAIL;
-	} else
+	entry = ratt_table_last(&l_modtable);
+	if (entry && (entry->handle == NULL)) {
 		entry->handle = handle;
-	return OK;
+		return OK;
+	}
+	debug("none or wrong module entry");
+	return FAIL;
 }
 
 static int unload_modules()
 {
 	rattmod_entry_t *entry = NULL;
-	int i;
 
-	if (l_modtable_index < 0)
-		return FAIL;	/* until table api */
-
-	i = l_modtable_index;
-	for (entry = l_modtable[i]; i >= 0; entry = l_modtable[--i])
+	RATT_TABLE_FOREACH(&l_modtable, entry)
+	{
 		if (entry->handle)
 			dlclose(entry->handle);
+	}
+
 	return OK;
 }
 
@@ -155,37 +148,33 @@ static int load_modules()
 
 int rattmod_register(rattmod_entry_t *entry)
 {
-	rattmod_entry_t **next = NULL;
-	if ((l_modtable_index + 1) >= l_conf_modtable_size) {
-		error("module table is full with `%i' modules",
-		    l_modtable_index + 1);
-		notice("you might want to raise `module/table-size-init'");
-		debug("XXX: should realloc");
-		return FAIL;
-	} else if (!entry) {
-		debug("NULL entry given");
+	RATTLOG_TRACE();
+	int retval;
+
+	if (!entry) {
+		debug("cannot register a NULL module entry");
 		return FAIL;
 	}
 
-	next = &(l_modtable[++l_modtable_index]);
-	if (!next) {
-		debug("could not get next slot");
+	retval = ratt_table_push(&l_modtable, entry);
+	if (retval != OK) {
+		warning("failed to register module `%s'", entry->name);
+		debug("ratt_table_push() failed");
 		return FAIL;
 	}
 
-	*next = entry;
-	debug("registered module entry %p, slot %i", entry, l_modtable_index);
+	notice("loaded module `%s'", entry->name);
+	debug("registered module entry %p, slot %i",
+	    entry, ratt_table_pos_last(&l_modtable));
 
 	return OK;
 }
-
-
 
 void module_fini(void *udata)
 {
 	RATTLOG_TRACE();
 	unload_modules();
-	free(l_modtable);
+	ratt_table_destroy(&l_modtable);
 	conf_table_release(l_conftable);
 }
 
@@ -200,16 +189,17 @@ int module_init(void)
 		return FAIL;
 	}
 
-	l_modtable = calloc(l_conf_modtable_size, sizeof(rattmod_entry_t *));
-	if (l_modtable) {
-		debug("allocated module table of size `%u'",
-		    l_conf_modtable_size);
-	} else {
-		error("memory allocation failed");
-		debug("calloc() failed");
+	retval = ratt_table_create(&l_modtable,
+	    l_conf_modtable_size, sizeof(rattmod_entry_t), 0);
+	if (retval != OK) {
+		if (l_conf_modtable_size < RATTTAB_MINSIZ)
+			error("module/table-size-init is too low");
+		debug("ratt_table_create() failed");
 		conf_table_release(l_conftable);
 		return FAIL;
-	}
+	} else
+		debug("allocated module table of size `%u'",
+		    l_conf_modtable_size);
 
 	/* load available modules */
 	load_modules();
@@ -218,7 +208,7 @@ int module_init(void)
 	if (retval != OK) {
 		debug("dtor_register() failed");
 		unload_modules();
-		free(l_modtable);
+		ratt_table_destroy(&l_modtable);
 		conf_table_release(l_conftable);
 		return FAIL;
 	}

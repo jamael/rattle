@@ -29,6 +29,16 @@ static inline size_t ratt_table_size(ratt_table_t *table)
 	return table->size;
 }
 
+static inline void *ratt_table_first(ratt_table_t *table)
+{
+	return (!(table->flags & RATTTABFLZER)) ? table->head : NULL;
+}
+
+static inline void *ratt_table_last(ratt_table_t *table)
+{
+	return (!(table->flags & RATTTABFLZER)) ? table->tail : NULL;
+}
+
 #define RATT_TABLE_FOREACH(tab, chunk) \
 	for (chunk = (tab)->head, (tab)->pos = 0; \
 	    (void *) (chunk) <= (tab)->tail; (chunk)++, ((tab)->pos)++)

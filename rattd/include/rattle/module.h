@@ -2,12 +2,8 @@
 #define RATTLE_MODULE_H
 
 #include <rattle/conf.h>
-#include <rattle/log.h>
 
-enum RATTMODPT {	/* module path */
-	RATTMODPTLOG = 0,	/* logger */
-	RATTMODPTMAX		/* count, must be last */
-};
+#define RATTMOD_NAMEMAXSIZ 128
 
 typedef struct {
 	void *handle;	/* module handle */
@@ -16,22 +12,12 @@ typedef struct {
 	char const * const desc;	/* module description */
 	char const * const version;	/* module version */
 
-	conf_decl_t *conftable;		/* config table */
+	char const *parent_name;	/* name of module parent */
 
-	const struct {
-		enum RATTMODPT path;
-		union {
-			/* logger hooks */
-			rattlog_hook_t * const log;
-		} u;
-	} hook[];	/* NULL-terminated hook table */
+	conf_decl_t *conftable;		/* config table */
+	void *callbacks;		/* module callbacks */
 } rattmod_entry_t;
 
-typedef struct {
-	int const path;
-	int const path_version;
-} module_path_t;
-
-extern int rattmod_register(rattmod_entry_t *);
+extern int rattmod_register(rattmod_entry_t const *);
 
 #endif /* RATTLE_MODULE_H */

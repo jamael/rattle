@@ -1,5 +1,5 @@
 /*
- * RATTD module loader
+ * RATTLE module loader
  * Copyright (c) 2012, Jamael Seun
  * All rights reserved.
  * 
@@ -42,7 +42,17 @@
 #include "conf.h"
 #include "dtor.h"
 
+#ifndef MODULE_PARENT_TABLESIZ
+#define MODULE_PARENT_TABLESIZ 16
+#endif
+
 static RATT_TABLE_INIT(l_modtable);	/* module table */
+static RATT_TABLE_INIT(l_partable);	/* parent table */
+
+typedef struct {
+	char const * const name;	/* parent name */
+	int (*attach)(rattmod_entry_t *);	/* attach callback */
+} module_parent_t;
 
 #ifndef RATTD_MODULE_PATH
 #define RATTD_MODULE_PATH "/usr/lib/rattd", "/usr/local/lib/rattd"
@@ -78,7 +88,7 @@ static int register_module_handle(void *handle)
 {
 	rattmod_entry_t *entry = NULL;
 
-	entry = ratt_table_last(&l_modtable);
+	entry = ratt_table_get_last(&l_modtable);
 	if (entry && (entry->handle == NULL)) {
 		entry->handle = handle;
 		return OK;
@@ -146,13 +156,71 @@ static int load_modules()
 	return OK;
 }
 
-int rattmod_register(rattmod_entry_t *entry)
+static int parent_compare(void const *in, void const *find)
+{
+	module_parent_t const *parent = in;
+	char const *name = find;
+	return (strcmp(parent->name, name)) ? FAIL : OK;
+}
+
+static int module_compare(void const *in, void const *find)
+{
+	rattmod_entry_t const *module = in;
+	char const *name = find;
+	return (strcmp(module->name, name)) ? FAIL : OK;
+}
+
+static int __module_attach(char const *parname, char const *modname)
 {
 	RATTLOG_TRACE();
+	rattmod_entry_t *module = NULL;
+	module_parent_t *parent = NULL;
+	int retval;
+
+	retval = ratt_table_search(&l_partable, (void **) &parent,
+	    &parent_compare, parname);
+	if (retval != OK) {
+		debug("could not find parent `%s'", parname);
+		debug("ratt_table_search() failed");
+		return FAIL;
+	}
+
+	retval = ratt_table_search(&l_modtable, (void **) &module,
+	    &module_compare, modname);
+	if (retval != OK) {
+		debug("could not find module `%s'", modname);
+		debug("ratt_table_search() failed");
+		return FAIL;
+	}
+
+	if (module->parent_name) {
+		debug("module `%s' is already attached to parent `%s'",
+		    modname, module->parent_name);
+		return FAIL;
+	}
+
+	debug("attaching module `%s' to `%s'", modname, parname);
+	parent->attach(module);
+	module->parent_name = parent->name;
+
+	return OK;
+}
+
+int rattmod_register(rattmod_entry_t const *entry)
+{
+	RATTLOG_TRACE();
+	rattmod_entry_t *module = NULL;
 	int retval;
 
 	if (!entry) {
 		debug("cannot register a NULL module entry");
+		return FAIL;
+	}
+
+	retval = ratt_table_search(&l_modtable, (void **) &module,
+	    &module_compare, entry->name);
+	if (retval == OK) {
+		debug("module `%s' exists in table", entry->name);
 		return FAIL;
 	}
 
@@ -166,6 +234,69 @@ int rattmod_register(rattmod_entry_t *entry)
 	notice("loaded module `%s'", entry->name);
 	debug("registered module entry %p, slot %i",
 	    entry, ratt_table_pos_last(&l_modtable));
+
+	return OK;
+}
+
+int module_attach(char const *parname, char const *modname)
+{
+	RATTLOG_TRACE();
+	char realmodname[RATTMOD_NAMEMAXSIZ] = { '\0' };
+	char const *separator = modname;
+	size_t parlen, modlen;
+
+	parlen = strlen(parname);
+	modlen = strlen(modname);
+	separator += parlen;
+
+	if ((modlen > (parlen + 2)) && (!strncmp(parname, modname, parlen)
+	    && (*separator == '_'))) /* modname with parname_ prefix ok */
+		return __module_attach(parname, modname);
+
+	/* modname must be prefixed with parname_ */
+	snprintf(realmodname, RATTMOD_NAMEMAXSIZ, "%s_%s", parname, modname);
+
+	return __module_attach(parname, realmodname);
+}
+
+int module_parent_detach(char const *parname)
+{
+	RATTLOG_TRACE();
+	module_parent_t *parent = NULL;
+	int retval;
+
+	retval = ratt_table_search(&l_partable, (void **) &parent,
+	    &parent_compare, parname);
+	if (retval != OK) {
+		debug("ratt_table_search() failed");
+		return FAIL;
+	}
+
+	/* clearing the chunk is enough to detach */
+	memset(parent, 0, sizeof(module_parent_t));
+
+	return OK;
+}
+
+int module_parent_attach(char const *parname, int (*attach)(rattmod_entry_t *))
+{
+	RATTLOG_TRACE();
+	module_parent_t parent = { parname, attach };
+	int retval;
+
+	if (!parname) {
+		debug("cannot register parent without a name");
+		return FAIL;
+	}
+
+	retval = ratt_table_push(&l_partable, &parent);
+	if (retval != OK) {
+		warning("failed to register module parent `%s'", parname);
+		debug("ratt_table_push() failed");
+		return FAIL;
+	}
+
+	debug("registered module parent `%s'", parname);
 
 	return OK;
 }
@@ -200,6 +331,17 @@ int module_init(void)
 	} else
 		debug("allocated module table of size `%u'",
 		    l_conf_modtable_size);
+
+	retval = ratt_table_create(&l_partable,
+	    MODULE_PARENT_TABLESIZ, sizeof(module_parent_t), 0);
+	if (retval != OK) {
+		debug("ratt_table_create() failed");
+		ratt_table_destroy(&l_modtable);
+		conf_table_release(l_conftable);
+		return FAIL;
+	} else
+		debug("allocated parent table of size `%u'",
+		    MODULE_PARENT_TABLESIZ);
 
 	/* load available modules */
 	load_modules();

@@ -306,6 +306,7 @@ void module_fini(void *udata)
 	RATTLOG_TRACE();
 	unload_modules();
 	ratt_table_destroy(&l_modtable);
+	ratt_table_destroy(&l_partable);
 	conf_table_release(l_conftable);
 }
 

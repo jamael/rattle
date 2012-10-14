@@ -25,14 +25,14 @@
  * SUCH DAMAGE.
  *
  */
-
+#include <stdio.h>
 
 #include <rattle/conf.h>
 #include <rattle/def.h>
 #include <rattle/log.h>
 #include <rattle/module.h>
 
-#define MODULE_NAME	"log_cons"
+#define MODULE_NAME	RATTLOG "_cons"
 #define MODULE_DESC	"Remote console logger"
 #define MODULE_VERSION	"0.1"
 
@@ -42,7 +42,7 @@ static conf_decl_t conftable[] = {
 
 static void log_cons_msg(int, const char *);
 
-static rattlog_hook_t log_hook = {
+static rattlog_callback_t log_callbacks = {
 	.on_msg = &log_cons_msg
 };
 
@@ -51,15 +51,12 @@ static rattmod_entry_t module_entry = {
 	.desc = MODULE_DESC,
 	.version = MODULE_VERSION,
 	.conftable = conftable,
-	.hook = {
-		{ RATTMODPTLOG, &log_hook },
-		{ RATTMODPTMAX }
-	},
+	.callbacks = &log_callbacks,
 };
 
 static void log_cons_msg(int level, const char *msg)
 {
-	RATTLOG_TRACE();	
+	printf("\nto console: %s\n", msg);
 }
 
 void __attribute__ ((destructor)) log_cons_fini(void)

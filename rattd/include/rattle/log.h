@@ -4,6 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#define RATTLOG	"logger"	/* name of this module parent */
+#define RATTLOG_VERSION_MAJOR 0	/* major version */
+#define RATTLOG_VERSION_MINOR 1 /* minor version */
+
+#define RATTLOG_MSGSIZMAX 256	/* includes trailing NULL byte */
+
 enum RATTLOGLEVEL {
 	RATTLOGERR = 0,	/* error */
 	RATTLOGWAR,	/* warning */
@@ -48,7 +54,7 @@ extern void rattlog_msg(int, const char *, ...);
 
 #ifdef DEBUG
 #define debug(fmt, args...) rattlog_msg(RATTLOGDBG, \
-    "<%s:%i> " fmt "\n", __FILE__, __LINE__ , ## args)
+    "<%s:%s:%i> " fmt "\n", __func__, __FILE__, __LINE__ , ## args)
 #define RATTLOG_TRACE() rattlog_msg(RATTLOGTRA, \
     "<%s:%i> entering %s\n", __FILE__, __LINE__, __func__)
 #else
@@ -56,8 +62,9 @@ extern void rattlog_msg(int, const char *, ...);
 #define RATTLOG_TRACE()
 #endif
 
+#define RATTLOG_CALLBACK_VERSION 1
 typedef struct {
 	void (*on_msg)(int, const char *);
-} rattlog_hook_t;
+} rattlog_callback_t;
 
 #endif /* RATTLE_LOG_H */

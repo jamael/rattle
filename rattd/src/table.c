@@ -39,9 +39,9 @@ static int realloc_and_move(ratt_table_t *table)
 	void *head = NULL;
 	size_t newsiz = 0;
 
-	if ((table->size + (table->size / 2)) > SIZE_MAX) {
-		debug("increment is overflowing a size_t (%u)", SIZE_MAX);
-		newsiz = SIZE_MAX;
+	if ((table->size + (table->size / 2)) > RATTTAB_MAXSIZ) {
+		debug("increment is over maximum size (%u)", RATTTAB_MAXSIZ);
+		newsiz = RATTTAB_MAXSIZ;
 	} else
 		newsiz = table->size + (table->size / 2);
 
@@ -52,7 +52,7 @@ static int realloc_and_move(ratt_table_t *table)
 
 	head = realloc(table->head, newsiz * table->chunk_size);
 	if (!head) {
-		warning("table resize operation failed: %s", strerror(errno));
+		error("table resize operation failed: %s", strerror(errno));
 		debug("realloc() failed");
 		return FAIL;
 	}
@@ -68,6 +68,29 @@ static int realloc_and_move(ratt_table_t *table)
 	table->size = newsiz;
 
 	return OK;
+}
+
+int ratt_table_search(ratt_table_t *table, void **retchunk,
+                      int (*comp)(void const *, void const *),
+                      void const *compdata)
+{
+	RATTLOG_TRACE();
+	void *chunk = NULL;
+
+	chunk = ratt_table_get_current(table);
+	if (chunk && (comp(chunk, compdata) == OK)) {
+		*retchunk = chunk;
+		return OK;
+	} else
+		RATT_TABLE_FOREACH(table, chunk)
+		{
+			if (chunk && (comp(chunk, compdata) == OK)) {
+				*retchunk = chunk;
+				return OK;
+			}
+		}
+
+	return FAIL;
 }
 
 int ratt_table_push(ratt_table_t *table, void const *chunk)
@@ -98,15 +121,14 @@ int ratt_table_push(ratt_table_t *table, void const *chunk)
 			    table->head, oldsiz, table->size);
 	}
 
-	if (!(table->flags & RATTTABFLZER)) { /* table is not empty */
+	if (!ratt_table_isempty(table)) { /* table is not empty */
 		tail = table->tail + table->chunk_size;
-		table->pos = ++(table->last);	/* push resets pos */
-	} else {
+		table->pos = ++(table->last);	/* push resets position */
+	} else
 		tail = table->head;
-		table->flags &= ~RATTTABFLZER;
-	};
 
 	table->tail = memcpy(tail, chunk, table->chunk_size);
+	table->chunk_count++;
 
 	debug("pushed new chunk at %p, slot %u", table->tail, table->pos);
 	return OK;
@@ -132,6 +154,13 @@ int ratt_table_create(ratt_table_t *table, size_t cnt, size_t size, int flags)
 
 	if (cnt < RATTTAB_MINSIZ) {
 		warning("initial table size of %u is not enough", cnt);
+		debug("asked for size %u when minimum is %u",
+		    cnt, RATTTAB_MINSIZ);
+		return FAIL;
+	} else if (cnt > RATTTAB_MAXSIZ) {
+		warning("initial table size of %u is too much", cnt);
+		debug("asked for size %u when maximum is %u",
+		    cnt, RATTTAB_MAXSIZ);
 		return FAIL;
 	}
 
@@ -142,14 +171,15 @@ int ratt_table_create(ratt_table_t *table, size_t cnt, size_t size, int flags)
 		return FAIL;
 	}
 
+	debug("created new table with head at %p", head);
+
 	memset(table, 0, sizeof(ratt_table_t));
 	table->head = table->tail = head;
 	table->size = cnt;
-	table->pos = 0;
 	table->chunk_size = size;
 
-	/* table is initialized but marked as empty */
-	table->flags = flags | RATTTABFLZER | RATTTABFLINI;
+	/* table exists now */
+	table->flags = RATTTABFLXIS | flags;
 
 	return OK;
 }

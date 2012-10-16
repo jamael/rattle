@@ -29,33 +29,20 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include <rattle/conf.h>
 #include <rattle/def.h>
 #include <rattle/log.h>
 #include <rattle/table.h>
-
-#include "conf.h"
 
 typedef struct {
 	void (*dtor)(void *);		/* destructor pointer */
 	void *udata;			/* destructor user data */
 } dtor_register_t;
 
-static RATT_TABLE_INIT(l_dtortable);	/* destructor table */
-
-#ifndef RATTD_DTOR_TABLESIZ
-#define RATTD_DTOR_TABLESIZ 16
+/* destructor table initial size */
+#ifndef DTOR_TABLESIZ
+#define DTOR_TABLESIZ	1
 #endif
-static uint16_t l_conf_dtortable_size = 0;	/* destructor table size */
-
-static conf_decl_t l_conftable[] = {
-	{ "destructor/table-size-init",
-	    "set the initial size of the destructor table",
-	    .defval.num = RATTD_DTOR_TABLESIZ,
-	    .val.num = (long long *)&l_conf_dtortable_size,
-	    .datatype = RATTCONFDTNUM16, .flags = RATTCONFFLUNS },
-	{ NULL }
-};
+static RATT_TABLE_INIT(l_dtortable);	/* destructor table */
 
 void dtor_unregister(void (*dtor)(void *udata))
 {
@@ -102,31 +89,28 @@ void dtor_fini(void *udata)
 {
 	RATTLOG_TRACE();
 	ratt_table_destroy(&l_dtortable);
-	conf_table_release(l_conftable);
 }
 
 int dtor_init(void)
 {
 	RATTLOG_TRACE();
 	int retval;
-
-	retval = conf_table_parse(l_conftable);
-	if (retval != OK) {
-		debug("conf_table_parse() failed");
-		return FAIL;
-	}
 	
 	retval = ratt_table_create(&l_dtortable,
-	    l_conf_dtortable_size, sizeof(dtor_register_t), 0);
+	    DTOR_TABLESIZ, sizeof(dtor_register_t), 0);
 	if (retval != OK) {
-		if (l_conf_dtortable_size < RATTTAB_MINSIZ)
-			error("destructor/table-size-init is too low");
 		debug("ratt_table_create() failed");
-		conf_table_release(l_conftable);
 		return FAIL;
 	} else
 		debug("allocated destructor table of size `%u'",
-		    l_conf_dtortable_size);
+		    DTOR_TABLESIZ);
+
+	retval = dtor_register(dtor_fini, NULL);
+	if (retval != OK) {
+		debug("dtor_register() failed");
+		ratt_table_destroy(&l_dtortable);
+		return FAIL;
+	}
 
 	return OK;
 }

@@ -42,45 +42,33 @@
 #include "conf.h"
 #include "dtor.h"
 
-#ifndef MODULE_PARENT_TABLESIZ
-#define MODULE_PARENT_TABLESIZ 16
+/* initial module table size */
+#ifndef MODULE_TABLESIZ
+#define MODULE_TABLESIZ		16
 #endif
-
 static RATT_TABLE_INIT(l_modtable);	/* module table */
+
+/* initial parent table size */
+#ifndef MODULE_PARENT_TABLESIZ
+#define MODULE_PARENT_TABLESIZ	16
+#endif
 static RATT_TABLE_INIT(l_partable);	/* parent table */
 
 typedef struct {
-	char const * const name;	/* parent name */
+	char const * const name;		/* parent name */
 	int (*attach)(rattmod_entry_t *);	/* attach callback */
 } module_parent_t;
 
 #ifndef RATTD_MODULE_PATH
 #define RATTD_MODULE_PATH "/usr/lib/rattd", "/usr/local/lib/rattd"
-#define RATTD_MODULE_PATH_COUNT 2
-#elif !defined RATTD_MODULE_PATH_COUNT
-#error "RATTD_MODULE_PATH requires RATTD_MODULE_PATH_COUNT"
 #endif
-static char **l_conf_modpath_lst = NULL;
-static size_t l_conf_modpath_cnt = 0;
+static RATTCONF_DEFVAL(l_conf_modpath_defval, RATTD_MODULE_PATH);
+static RATTCONF_LIST_INIT(l_conf_modpath);
 
-#ifndef RATTD_MODULE_TABLESIZ
-#define RATTD_MODULE_TABLESIZ 16
-#endif
-static uint16_t l_conf_modtable_size = 0;	/* module table size */
-
-static conf_decl_t l_conftable[] = {
-	{ "module/path",
-	    "list of path to search for modules",
-	    .defval.lst.str = { RATTD_MODULE_PATH },
-	    .defval_lstcnt = RATTD_MODULE_PATH_COUNT,
-	    .val.lst.str = &l_conf_modpath_lst,
-	    .val_cnt = &l_conf_modpath_cnt,
-	    .datatype = RATTCONFDTSTR, .flags = RATTCONFFLLST },
-	{ "module/table-size-init",
-	    "set the initial size of the module table",
-	    .defval.num = RATTD_MODULE_TABLESIZ,
-	    .val.num = (long long *)&l_conf_modtable_size,
-	    .datatype = RATTCONFDTNUM16, .flags = RATTCONFFLUNS },
+static rattconf_decl_t l_conftable[] = {
+	{ "search-path", "list of path to search for modules",
+	    l_conf_modpath_defval, &l_conf_modpath,
+	    RATTCONFDTSTR, RATTCONFFLLST },
 	{ NULL }
 };
 
@@ -113,26 +101,27 @@ static int unload_modules()
 static int load_modules()
 {
 	DIR *dir = NULL;
+	char **modpath = NULL;
 	struct dirent *entry = NULL;
 	void *handle = NULL;
 	char sofile[PATH_MAX] = { '\0' };
-	int retval, i;
+	int retval;
 
-	for (i = 0; i < l_conf_modpath_cnt; ++i) {
-		debug("looking for modules inside `%s'",
-		    l_conf_modpath_lst[i]);
+	RATTCONF_LIST_FOREACH(&l_conf_modpath, modpath)
+	{
+		debug("looking for modules inside `%s'", *modpath);
 
-		dir = opendir(l_conf_modpath_lst[i]);
+		dir = opendir(*modpath);
 		if (!dir) {
 			warning("could not load modules from `%s': %s",
-			    l_conf_modpath_lst[i], strerror(errno));
+			    *modpath, strerror(errno));
 			continue;
 		}
 
 		while ((entry = readdir(dir)) != NULL
 		    && entry->d_type == DT_REG) {
 			snprintf(sofile, PATH_MAX, "%s/%s",
-			    l_conf_modpath_lst[i], entry->d_name);
+			    *modpath, entry->d_name);
 
 			handle = dlopen(sofile, RTLD_LAZY);
 			if (!handle) {
@@ -307,7 +296,7 @@ void module_fini(void *udata)
 	unload_modules();
 	ratt_table_destroy(&l_modtable);
 	ratt_table_destroy(&l_partable);
-	conf_table_release(l_conftable);
+	conf_release(l_conftable);
 }
 
 int module_init(void)
@@ -315,30 +304,28 @@ int module_init(void)
 	RATTLOG_TRACE();
 	int retval;
 
-	retval = conf_table_parse(l_conftable);
+	retval = conf_parse("module", l_conftable);
 	if (retval != OK) {
-		debug("conf_table_parse() failed");
+		debug("conf_parse() failed");
 		return FAIL;
 	}
 
 	retval = ratt_table_create(&l_modtable,
-	    l_conf_modtable_size, sizeof(rattmod_entry_t), 0);
+	    MODULE_TABLESIZ, sizeof(rattmod_entry_t), 0);
 	if (retval != OK) {
-		if (l_conf_modtable_size < RATTTAB_MINSIZ)
-			error("module/table-size-init is too low");
 		debug("ratt_table_create() failed");
-		conf_table_release(l_conftable);
+		conf_release(l_conftable);
 		return FAIL;
 	} else
 		debug("allocated module table of size `%u'",
-		    l_conf_modtable_size);
+		    MODULE_TABLESIZ);
 
 	retval = ratt_table_create(&l_partable,
 	    MODULE_PARENT_TABLESIZ, sizeof(module_parent_t), 0);
 	if (retval != OK) {
 		debug("ratt_table_create() failed");
 		ratt_table_destroy(&l_modtable);
-		conf_table_release(l_conftable);
+		conf_release(l_conftable);
 		return FAIL;
 	} else
 		debug("allocated parent table of size `%u'",
@@ -352,7 +339,7 @@ int module_init(void)
 		debug("dtor_register() failed");
 		unload_modules();
 		ratt_table_destroy(&l_modtable);
-		conf_table_release(l_conftable);
+		conf_release(l_conftable);
 		return FAIL;
 	}
 

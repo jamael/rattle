@@ -39,10 +39,11 @@
 #include "dtor.h"
 #include "module.h"
 
+/* callback table initial size */
 #ifndef LOG_CALLTABLESIZ
-#define LOG_CALLTABLESIZ	4	/* callbacks table size */
+#define LOG_CALLTABLESIZ	4
 #endif
-static RATT_TABLE_INIT(l_calltable);	/* callbacks table */
+static RATT_TABLE_INIT(l_calltable);	/* callback table */
 
 /*
  * standard logger module (should have its own file)
@@ -98,31 +99,25 @@ static enum {
 /* logger verbosity level */
 static int l_verbose = RATTLOGMAX;
 
-#ifndef LOG_MODULE
-#define LOG_MODULE "std"
-#define LOG_MODULE_COUNT 1
-#elif !defined LOG_MODULE_COUNT
-#error "LOG_MODULE requires LOG_MODULE_COUNT"
+#ifndef RATTD_LOG_MODULE
+#define RATTD_LOG_MODULE "std"
 #endif
-static char **l_conf_module_lst = NULL;
-static size_t l_conf_module_cnt = 0;
+static RATTCONF_DEFVAL(l_conf_module_defval, RATTD_LOG_MODULE);
+static RATTCONF_LIST_INIT(l_conf_module);
 
-#ifndef LOG_VERBOSE
-#define LOG_VERBOSE "notice"
+#ifndef RATTD_LOG_VERBOSE
+#define RATTD_LOG_VERBOSE "notice"
 #endif
+static RATTCONF_DEFVAL(l_conf_verbose_defval, RATTD_LOG_VERBOSE);
 static char *l_conf_verbose = NULL;
 
 static conf_decl_t l_conftable[] = {
-	{ "logger/verbose", "level of verbosity",
-	    .defval.str = LOG_VERBOSE, .val.str = &l_conf_verbose,
-	    .datatype = RATTCONFDTSTR },
-	{ "logger/module",
-	    "list of modules to use as a logger",
-	    .defval.lst.str = { LOG_MODULE },
-	    .defval_lstcnt = LOG_MODULE_COUNT,
-	    .val.lst.str = &l_conf_module_lst,
-	    .val_cnt = &l_conf_module_cnt,
-	    .datatype = RATTCONFDTSTR, .flags = RATTCONFFLLST },
+	{ "verbose", "level of verbosity",
+	    l_conf_verbose_defval, &l_conf_verbose,
+	    RATTCONFDTSTR, 0 },
+	{ "module", "list of modules to use as a logger",
+	    l_conf_module_defval, &l_conf_module,
+	    RATTCONFDTSTR, RATTCONFFLLST },
 	{ NULL }
 };
 
@@ -148,13 +143,12 @@ static int attach_module(rattmod_entry_t *modentry)
 
 static void load_modules_callbacks(void)
 {
-	char *modname = NULL;
-	int i, retval;
+	char **modname = NULL;
+	int retval;
 
-	for (i = 0, modname = l_conf_module_lst[i];
-	    i < l_conf_module_cnt; modname = l_conf_module_lst[++i])
+	RATTCONF_LIST_FOREACH(&l_conf_module, modname)
 	{
-		retval = module_attach(RATTLOG, modname);
+		retval = module_attach(RATTLOG, *modname);
 		if (retval != OK)
 			debug("module_attach() failed");
 	}
@@ -191,7 +185,7 @@ void log_fini(void *udata)
 //	rattmod_unregister(&log_std_entry);
 	module_parent_detach(RATTLOG);
 	ratt_table_destroy(&l_calltable);
-	conf_table_release(l_conftable);
+	conf_release(l_conftable);
 }
 
 int log_init(void)
@@ -199,9 +193,9 @@ int log_init(void)
 	RATTLOG_TRACE();
 	int retval;
 
-	retval = conf_table_parse(l_conftable);
+	retval = conf_parse(RATTLOG, l_conftable);
 	if (retval != OK) {
-		debug("conf_table_parse() failed");
+		debug("conf_parse() failed");
 		return FAIL;
 	}
 
@@ -216,7 +210,7 @@ int log_init(void)
 	    LOG_CALLTABLESIZ, sizeof(rattlog_callback_t), 0);
 	if (retval != OK) {
 		debug("ratt_table_create() failed");
-		conf_table_release(l_conftable);
+		conf_release(l_conftable);
 		return FAIL;
 	} else
 		debug("allocated module callback table of size `%u'",
@@ -226,7 +220,7 @@ int log_init(void)
 	if (retval != OK) {
 		debug("module_parent_attach() failed");
 		ratt_table_destroy(&l_calltable);
-		conf_table_release(l_conftable);
+		conf_release(l_conftable);
 		return FAIL;
 	}
 
@@ -237,7 +231,7 @@ int log_init(void)
 		debug("rattmod_register() failed");
 		module_parent_detach(RATTLOG);
 		ratt_table_destroy(&l_calltable);
-		conf_table_release(l_conftable);
+		conf_release(l_conftable);
 		return FAIL;
 	}
 	
@@ -248,7 +242,7 @@ int log_init(void)
 //		rattmod_unregister(&log_std_entry);
 		module_parent_detach(RATTLOG);
 		ratt_table_destroy(&l_calltable);
-		conf_table_release(l_conftable);
+		conf_release(l_conftable);
 		return FAIL;
 	}
 
@@ -260,7 +254,7 @@ int log_init(void)
 		debug("dtor_register() failed");
 		module_parent_detach(RATTLOG);
 		ratt_table_destroy(&l_calltable);
-		conf_table_release(l_conftable);
+		conf_release(l_conftable);
 		return FAIL;
 	}
 

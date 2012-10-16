@@ -35,6 +35,8 @@
 #include <rattle/conf.h>
 #include <rattle/log.h>
 
+#include "dtor.h"
+
 /* initial size of a value list */
 #define CONF_TABLESIZ		4
 
@@ -100,9 +102,11 @@ static int unset_value(void *value, int type)
 
 	switch (type) {
 	case RATTCONFDTSTR:
-		debug("freeing string at %p", *str);
-		free(*str);
-		*str = NULL;
+		if (*str) {
+			debug("freeing string at %p", *str);
+			free(*str);
+			*str = NULL;
+		}
 		break;
 	case RATTCONFDTNUM8:
 	case RATTCONFDTNUM16:
@@ -393,7 +397,19 @@ static int decl_use_config_value(rattconf_decl_t *decl, config_setting_t *sett)
 	return OK;
 }
 
-void conf_close(config_t *cfg)
+static inline void decl_release(rattconf_decl_t *decl)
+{
+	if (decl && (decl->flags & RATTCONFFLLST)) {
+		debug("releasing list for %s", decl->path);
+		list_destroy(decl->value, decl->type);
+	} else if (decl) {
+		debug("releasing value for %s", decl->path);
+		unset_value(decl->value, decl->type);
+	} else
+		debug("decl is NULL");
+}
+
+void conf_close(void)
 {
 	RATTLOG_TRACE();
 	config_destroy(&l_cfg);
@@ -411,24 +427,26 @@ int conf_open(const char *file)
 	return OK;
 }
 
+void conf_release_reverse(rattconf_decl_t const * const first,
+                          rattconf_decl_t *current)
+{
+	RATTLOG_TRACE();
+	if (first)
+		for (; (current != NULL) && (current >= first); current--)
+			decl_release(current);
+}
+
 void conf_release(rattconf_decl_t *decl)
 {
 	RATTLOG_TRACE();
-
-	for (; decl && decl->path; decl++)
-	{
-		if (decl->flags & RATTCONFFLLST) {
-			list_destroy(decl->value, decl->type);
-			continue;
-		}
-
-		unset_value(decl->value, decl->type);
-	}
+	for (; (decl != NULL) && (decl->path != NULL); decl++)
+		decl_release(decl);
 }
 
 int conf_parse(char const *parent, rattconf_decl_t *decl)
 {
 	RATTLOG_TRACE();
+	rattconf_decl_t const * const first = decl;
 	config_setting_t *sett = NULL;
 	char settpath[CONF_SETTPATHMAX] = { '\0' };
 	char *declpath = NULL;
@@ -455,6 +473,7 @@ int conf_parse(char const *parent, rattconf_decl_t *decl)
 		if (parent) {
 			if (strlen(decl->path) > declmaxsiz) {
 				debug("no space left for `%s'", decl->path);
+				conf_release_reverse(first, decl);
 				return FAIL;
 			}
 			strncpy(declpath, decl->path, declmaxsiz);
@@ -464,11 +483,13 @@ int conf_parse(char const *parent, rattconf_decl_t *decl)
 
 		if (!sett && (decl->flags & RATTCONFFLREQ)) {
 			error("`%s' declaration is mandatory", decl->path);
+			conf_release_reverse(first, decl);
 			return FAIL;
 		} else if (!sett) {	/* set to default value */
 			retval = decl_use_default_value(decl);
 			if (retval != OK) {
 				debug("decl_use_default_value() failed");
+				conf_release_reverse(first, decl);
 				return FAIL;
 			}
 			continue;
@@ -476,6 +497,7 @@ int conf_parse(char const *parent, rattconf_decl_t *decl)
 			retval = decl_use_config_value(decl, sett);
 			if (retval != OK) {
 				debug("decl_use_config_value() failed");
+				conf_release_reverse(first, decl);
 				return FAIL;
 			}
 			continue;
@@ -486,12 +508,21 @@ int conf_parse(char const *parent, rattconf_decl_t *decl)
 
 void conf_fini(void *udata)
 {
-	/* empty */
+	conf_close();
 }
 
 int conf_init(void)
 {
 	RATTLOG_TRACE();
+	int retval;
+
 	config_init(&l_cfg);
+
+	retval = dtor_register(conf_fini, NULL);
+	if (retval != OK) {
+		debug("dtor_register() failed");
+		return FAIL;
+	}
+
 	return OK;
 }

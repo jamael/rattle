@@ -37,53 +37,39 @@
 
 #ifndef RATTD_LISTEN
 #define RATTD_LISTEN "any"
-#define RATTD_LISTEN_COUNT 1
-#elif !defined RATTD_LISTEN_COUNT
-#error "RATTD_LISTEN requires RATTD_LISTEN_COUNT"
 #endif
-static char **l_conf_listen_lst = NULL;
-static size_t l_conf_listen_cnt = 0;
+static RATTCONF_DEFVAL(l_conf_listen_defval, RATTD_LISTEN);
+static RATTCONF_LIST_INIT(l_conf_listen);
 
 #ifndef RATTD_PROTO
 #define RATTD_PROTO "udp", "tcp"
-#define RATTD_PROTO_COUNT 2
-#elif !defined RATTD_PROTO_COUNT
-#error "RATTD_PROTO requires RATTD_PROTO_COUNT"
 #endif
-static char **l_conf_proto_lst = NULL;
-static size_t l_conf_proto_cnt = 0;
+static RATTCONF_DEFVAL(l_conf_proto_defval, RATTD_PROTO);
+static RATTCONF_LIST_INIT(l_conf_proto);
 
 #ifndef RATTD_PORT
-#define RATTD_PORT 2194
+#define RATTD_PORT "2194"
 #endif
-static uint16_t l_conf_port = 0;
+static RATTCONF_DEFVAL(l_conf_port_defval, RATTD_PORT);
+static RATTCONF_LIST_INIT(l_conf_port);
 
 static conf_decl_t l_conftable[] = {
-	{ "listen",
-	    "list of IP or FQDN to listen on",
-	    .defval.lst.str = { RATTD_LISTEN },
-	    .defval_lstcnt = RATTD_LISTEN_COUNT,
-	    .val.lst.str = &l_conf_listen_lst,
-	    .val_cnt = &l_conf_listen_cnt,
-	    .datatype = RATTCONFDTSTR, .flags = RATTCONFFLLST },
-	{ "proto",
-	    "use the specified transport protocols",
-	    .defval.lst.str = { RATTD_PROTO },
-	    .defval_lstcnt = RATTD_PROTO_COUNT,
-	    .val.lst.str = &l_conf_proto_lst,
-	    .val_cnt = &l_conf_proto_cnt,
-	    .datatype = RATTCONFDTSTR, .flags = RATTCONFFLLST },
-	{ "port",
-	    "bind to the specified port",
-	    .defval.num = RATTD_PORT, .val.num = (long long *)&l_conf_port,
-	    .datatype = RATTCONFDTNUM16, .flags = RATTCONFFLUNS },
+	{ "listen", "IP, FQDN, interfaces to listen on or `any' for all",
+	    l_conf_listen_defval, &l_conf_listen,
+	    RATTCONFDTSTR, RATTCONFFLLST },
+	{ "proto", "use the specified transport protocols",
+	    l_conf_proto_defval, &l_conf_proto,
+	    RATTCONFDTSTR, RATTCONFFLLST },
+	{ "port", "listen to the specified ports",
+	    l_conf_port_defval, &l_conf_port,
+	    RATTCONFDTNUM16, RATTCONFFLLST|RATTCONFFLUNS },
 	{ NULL }
 };
 
 void rattd_fini(void *udata)
 {
 	RATTLOG_TRACE();
-	conf_table_release(l_conftable);
+	conf_release(l_conftable);
 }
 
 int rattd_init(void)
@@ -91,9 +77,9 @@ int rattd_init(void)
 	RATTLOG_TRACE();
 	int retval;
 
-	retval = conf_table_parse(l_conftable);
+	retval = conf_parse(NULL, l_conftable);
 	if (retval != OK) {
-		debug("conf_table_parse() failed");
+		debug("conf_parse() failed");
 		return FAIL;
 	}
 

@@ -6,8 +6,8 @@
 #define RATTTABFLXIS	0x1	/* table exists */
 #define RATTTABFLNRL	0x2	/* forbid realloc */
 
-/* minimum table size; cannot be lower than 2 */
-#define RATTTAB_MINSIZ 2
+/* minimum table size; cannot be lower than 1 */
+#define RATTTAB_MINSIZ 1
 /* maximum table size; cannot be higher than SIZE_MAX - 1 */
 #define RATTTAB_MAXSIZ SIZE_MAX - 1
 
@@ -81,5 +81,6 @@ extern int ratt_table_destroy(ratt_table_t *);
 extern int ratt_table_push(ratt_table_t *, void const *);
 extern int ratt_table_search(ratt_table_t *, void **,
     int (*)(void const *, void const *), void const *);
+extern int ratt_table_get_tail_next(ratt_table_t *, void **);
 
 #endif /* RATTLE_TABLE_H */

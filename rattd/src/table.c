@@ -37,13 +37,17 @@
 static int realloc_and_move(ratt_table_t *table)
 {
 	void *head = NULL;
-	size_t newsiz = 0;
+	size_t newsiz = 0, growsiz = 0;
 
-	if ((table->size + (table->size / 2)) > RATTTAB_MAXSIZ) {
+	growsiz = table->size / 2;
+	if (!growsiz) /* cannot be 0 */
+		growsiz = 1;
+
+	if ((table->size + growsiz) > RATTTAB_MAXSIZ) {
 		debug("increment is over maximum size (%u)", RATTTAB_MAXSIZ);
 		newsiz = RATTTAB_MAXSIZ;
 	} else
-		newsiz = table->size + (table->size / 2);
+		newsiz = table->size + growsiz;
 
 	if (newsiz <= table->size) {
 		debug("not growing... %u vs %u", newsiz, table->size);
@@ -93,16 +97,16 @@ int ratt_table_search(ratt_table_t *table, void **retchunk,
 	return FAIL;
 }
 
-int ratt_table_push(ratt_table_t *table, void const *chunk)
+int ratt_table_get_tail_next(ratt_table_t *table, void **tail)
 {
 	RATTLOG_TRACE();
-	void *tail = NULL;
+	void *next = NULL;
 	int retval;
 
 #ifdef DEBUG
 	size_t oldsiz = 0;
 #endif
-	if ((table->last + 1) >= table->size) {
+	if (!ratt_table_isempty(table) && (table->last + 1) >= table->size) {
 		if (table->flags & RATTTABFLNRL) { /* forbid realloc */
 			warning("table is full with %i chunks",
 			    table->last + 1);
@@ -122,15 +126,32 @@ int ratt_table_push(ratt_table_t *table, void const *chunk)
 	}
 
 	if (!ratt_table_isempty(table)) { /* table is not empty */
-		tail = table->tail + table->chunk_size;
+		next = table->tail + table->chunk_size;
 		table->pos = ++(table->last);	/* push resets position */
 	} else
-		tail = table->head;
+		next = table->head;
 
-	table->tail = memcpy(tail, chunk, table->chunk_size);
 	table->chunk_count++;
+	*tail = table->tail = next;
 
-	debug("pushed new chunk at %p, slot %u", table->tail, table->pos);
+	return OK;
+}
+
+int ratt_table_push(ratt_table_t *table, void const *chunk)
+{
+	RATTLOG_TRACE();
+	void *tail = NULL;
+	int retval;
+
+	retval = ratt_table_get_tail_next(table, &tail);
+	if (retval != OK) {
+		debug("ratt_table_get_tail_next() failed");
+		return FAIL;
+	}
+
+	memcpy(tail, chunk, table->chunk_size);
+
+	debug("pushed new chunk at %p, slot %u", tail, table->pos);
 	return OK;
 }
 

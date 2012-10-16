@@ -159,6 +159,7 @@ int ratt_table_destroy(ratt_table_t *table)
 {
 	RATTLOG_TRACE();
 	if (table && table->head) {
+		debug("freeing table at %p", table->head);
 		free(table->head);
 		memset(table, 0, sizeof(ratt_table_t));
 		return OK;

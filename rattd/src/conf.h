@@ -5,8 +5,9 @@
 
 void conf_fini(void *);
 int conf_init(void);
+void conf_close(void);
 int conf_open(const char *);
-int conf_table_parse(conf_decl_t *);
-void conf_table_release(conf_decl_t *);
+int conf_parse(char const *, rattconf_decl_t *);
+void conf_release(rattconf_decl_t *);
 
 #endif /* SRC_CONF_H */

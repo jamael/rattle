@@ -1,5 +1,5 @@
 /*
- * RATTD configuration handler
+ * RATTLE configuration handler
  * Copyright (c) 2012, Jamael Seun
  * All rights reserved.
  * 
@@ -35,64 +35,51 @@
 #include <rattle/conf.h>
 #include <rattle/log.h>
 
+/* initial size of a value list */
+#define CONF_TABLESIZ		4
+
+/* maximum size of a declaration path */
+#define CONF_SETTPATHMAX	128
+
 static struct config_t l_cfg;
 
-static inline int decl_strdup(conf_decl_t *decl, const char *str)
+static int check_num(int type, int num, int unsign)
 {
-	*(decl->val.str) = strdup(str);
-	if (*(decl->val.str))
-		return OK;
-	error("memory allocation failed");
-	return FAIL;
-}
+	unsigned int u_num = num;
 
-static inline int decl_strdup_elem(conf_decl_t *decl, const char *str, int i)
-{
-	(*(decl->val.lst.str))[i] = strdup(str);
-	if ((*(decl->val.lst.str))[i])
-		return OK;
-	error("memory allocation failed");
-	return FAIL;
-}
-
-static inline int decl_check_num(conf_decl_t *decl, long long num)
-{
-	switch(decl->datatype) {
+	switch(type) {
 	case RATTCONFDTNUM8:
-		if ((decl->flags & RATTCONFFLUNS)
-		    && ((num > UCHAR_MAX) || (num < 0))) {
-			error("`%lli' out of bound (%u to %u).",
+		if (unsign && ((u_num > UCHAR_MAX) || (num < 0))) {
+			error("`%i' out of bound (%u to %u).",
 		 	    num, 0, UCHAR_MAX);
 			return FAIL;
-		} else if (!(decl->flags & RATTCONFFLUNS)
-		    && ((num > SCHAR_MAX) || (num < SCHAR_MIN))) {
-			error("`%lli' out of bound (%i to %i).",
+		} else if (!unsign && ((num > SCHAR_MAX)
+		    || (num < SCHAR_MIN))) {
+			error("`%i' out of bound (%i to %i).",
 		 	    num, SCHAR_MIN, SCHAR_MAX);
 			return FAIL;
 		}
 		break;
 	case RATTCONFDTNUM16:
-		if ((decl->flags & RATTCONFFLUNS)
-		    && ((num > USHRT_MAX) || (num < 0))) {
-			error("`%lli' out of bound (%u to %u).",
+		if (unsign && ((u_num > USHRT_MAX) || (num < 0))) {
+			error("`%i' out of bound (%u to %u).",
 		 	    num, 0, USHRT_MAX);
 			return FAIL;
-		} else if (!(decl->flags & RATTCONFFLUNS)
-		    && ((num > SHRT_MAX) || (num < SHRT_MIN))) {
-			error("`%lli' out of bound (%i to %i).",
+		} else if (!unsign && ((num > SHRT_MAX)
+		    || (num < SHRT_MIN))) {
+			error("`%i' out of bound (%i to %i).",
 		 	    num, SHRT_MIN, SHRT_MAX);
 			return FAIL;
 		}
 		break;
 	case RATTCONFDTNUM32:
-		if ((decl->flags & RATTCONFFLUNS)
-		    && ((num > UINT_MAX) || (num < 0))) {
-			error("`%lli' out of bound (%u to %u).",
+		if (unsign && (num < 0)) {
+			error("`%i' out of bound (%u to %u).",
 		 	    num, 0, UINT_MAX);
 			return FAIL;
-		} else if (!(decl->flags & RATTCONFFLUNS)
-		    && ((num > INT_MAX) || (num < INT_MIN))) {
-			error("`%lli' out of bound (%i to %i).",
+		} else if (!unsign && ((num > INT_MAX)
+		    || (num < INT_MIN))) {
+			error("`%i' out of bound (%i to %i).",
 		 	    num, INT_MIN, INT_MAX);
 			return FAIL;
 		}
@@ -101,43 +88,112 @@ static inline int decl_check_num(conf_decl_t *decl, long long num)
 		/* empty */
 		break;
 	default:
-		debug("unknown datatype value of %i", decl->datatype);
+		debug("invalid value type `%i'", type);
 		return FAIL;
 	}
 	return OK;
 }
 
-static void decl_release_list(conf_decl_t *decl)
+static int unset_value(void *value, int type)
 {
-	int i;
+	char **str = value;
 
-	for (i = 0; i < decl->val_lstcnt; ++i) {
-		switch (decl->datatype) {
-		case RATTCONFDTSTR:
-			debug("releasing index %i for `%s'", i, decl->path);
-			if ((*(decl->val.lst.str))[i])
-				free((*(decl->val.lst.str))[i]);
-			break;
-		case RATTCONFDTNUM8:
-		case RATTCONFDTNUM16:
-		case RATTCONFDTNUM32:
-			/* empty */
-			break;
-		default:
-			debug("unknown datatype value of %i", decl->datatype);
-			break;
-		}
+	switch (type) {
+	case RATTCONFDTSTR:
+		debug("freeing string at %p", *str);
+		free(*str);
+		*str = NULL;
+		break;
+	case RATTCONFDTNUM8:
+	case RATTCONFDTNUM16:
+	case RATTCONFDTNUM32:
+		/* empty */
+		break;
+	default:
+		debug("invalid value type `%i'", type);
+		return FAIL;
 	}
-	debug("releasing memory chunk for `%s'", decl->path);
-	free(*(decl->val.lst.str));
+
+	return OK;
 }
 
-static int decl_alloc_list(conf_decl_t *decl, size_t len)
+static int set_value(void *dst, void const * const src, int type, int flags)
+{
+	void *tail = NULL;
+	char **str = dst;
+	int *num = dst;
+	int retval;
+
+	if (!dst || !src) {
+		debug("either src or dst pointer is NULL");
+		return FAIL;
+	}
+
+	if (flags & RATTCONFFLLST) {
+		retval = ratt_table_get_tail_next(dst, &tail);
+		if (retval != OK) {
+			debug("ratt_table_get_tail_next() failed");
+			return FAIL;
+		}
+		str = tail;
+		num = tail;
+	}
+
+	switch (type) {
+	case RATTCONFDTSTR:
+		*str = strdup((char *) src);
+		if (!(*str)) {
+			error("memory allocation failed");
+			debug("strdup() failed");
+			return FAIL;
+		}
+		break;
+	case RATTCONFDTNUM8:
+	case RATTCONFDTNUM16:
+	case RATTCONFDTNUM32:
+		*num = (int) *((int *)src);
+		retval = check_num(type, *num, (flags & RATTCONFFLUNS));
+		if (retval != OK) {
+			debug("check_num() failed");
+			return FAIL;
+		}
+		break;
+	default:
+		debug("invalid value type `%i'", type);
+		return FAIL;
+	}
+
+	return OK;
+}
+
+static int list_destroy(ratt_table_t *table, int type)
+{
+	void *value = NULL;
+	int retval;
+
+	RATT_TABLE_FOREACH(table, value)
+	{
+		unset_value(value, type);
+	}
+
+	retval = ratt_table_destroy(table);
+	if (retval != OK) {
+		debug("ratt_table_destroy() failed");
+		return FAIL;
+	}
+
+	return OK;
+}
+
+static int list_create(ratt_table_t *table, size_t cnt, int type)
 {
 	size_t size = 0;
-	debug("allocating list of %i element(s) for `%s'", len, decl->path);
+	int retval;
 
-	switch (decl->datatype) {
+	if (!cnt)
+		cnt = CONF_TABLESIZ;
+
+	switch (type) {
 	case RATTCONFDTSTR:
 		size = sizeof(char *);
 		break;
@@ -151,90 +207,50 @@ static int decl_alloc_list(conf_decl_t *decl, size_t len)
 		size = sizeof(int32_t);
 		break;
 	default:
-		debug("unknown datatype value of %i", decl->datatype);
+		debug("invalid value type `%i'", type);
 		return FAIL;
 	}
 
-	*(decl->val.lst.str) = calloc(len, size);
-	if (!(*(decl->val.lst.str))) {
-		error("memory allocation failed");
+	retval = ratt_table_create(table, cnt, size, 0);
+	if (retval != OK) {
+		debug("ratt_table_create() failed");
 		return FAIL;
 	}
-
-	decl->val_lstcnt = len;
-	if (decl->val_cnt) /* user also wants to know */
-		*(decl->val_cnt) = len;
 
 	return OK;
 }
 
-static int decl_defval_list(conf_decl_t *decl)
+static int decl_use_default_value(rattconf_decl_t *decl)
 {
-	size_t maxcnt = 0;
-	char const *str = NULL;
-	int i, num, retval;
+	const char **defval = NULL;
+	int retval, num;
 
-	if ((maxcnt = decl->defval_lstcnt) > RATTCONFLSTSIZ) {
-		debug("adjusting defval.lst to maximum of %i (was %i)",
-		    RATTCONFLSTSIZ, decl->defval_lstcnt);
-		maxcnt = RATTCONFLSTSIZ;
+	if (decl->flags & RATTCONFFLLST) {
+		retval = list_create(decl->value, 0, decl->type);
+		if (retval != OK) {
+			debug("list_create() failed");
+			return FAIL;
+		}
 	}
 
-	/* first alloc the table */
-	retval = decl_alloc_list(decl, maxcnt);
-	if (retval != OK) {
-		debug("decl_alloc_list() failed");
-		return FAIL;
-	}
-
-	for (i = 0; i < maxcnt; ++i) {
-		switch (decl->datatype) {
-		case RATTCONFDTSTR:
-			str = decl->defval.lst.str[i];
-			retval = decl_strdup_elem(decl, str, i);
-			if (retval != OK) {
-				debug("decl_strdup_elem() failed");
-				return FAIL;
-			}
-			break;
+	for (defval = decl->defval; defval && (*defval != '\0'); defval++) {
+		switch (decl->type) {
 		case RATTCONFDTNUM8:
-			num = decl->defval.lst.num[i];
-			retval = decl_check_num(decl, num);
-			if (retval != OK) {
-				debug("decl_check_num() failed");
-				return FAIL;
-			}
-			if (decl->flags & RATTCONFFLUNS)
-				(*(decl->val.lst.num8u))[i] = (uint8_t) num;
-			else
-				(*(decl->val.lst.num8))[i] = (int8_t) num;
-			break;
 		case RATTCONFDTNUM16:
-			num = decl->defval.lst.num[i];
-			retval = decl_check_num(decl, num);
-			if (retval != OK) {
-				debug("decl_check_num() failed");
-				return FAIL;
-			}
-			if (decl->flags & RATTCONFFLUNS)
-				(*(decl->val.lst.num16u))[i] = (uint16_t) num;
-			else
-				(*(decl->val.lst.num16))[i] = (int16_t) num;
-			break;
 		case RATTCONFDTNUM32:
-			num = decl->defval.lst.num[i];
-			retval = decl_check_num(decl, num);
-			if (retval != OK) {
-				debug("decl_check_num() failed");
-				return FAIL;
-			}
-			if (decl->flags & RATTCONFFLUNS)
-				(*(decl->val.lst.num32u))[i] = (uint32_t) num;
-			else
-				(*(decl->val.lst.num32))[i] = (int32_t) num;
+			/* convert string to integer */
+			num = atoi(*defval);
+			retval = set_value(decl->value,
+			    &num, decl->type, decl->flags);
 			break;
 		default:
-			debug("unknown datatype value of %i", decl->datatype);
+			retval = set_value(decl->value,
+			    *defval, decl->type, decl->flags);
+			break;
+		}
+
+		if (retval != OK) {
+			debug("set_value() failed");
 			return FAIL;
 		}
 	}
@@ -242,13 +258,13 @@ static int decl_defval_list(conf_decl_t *decl)
 	return OK;
 }
 
-static int decl_parse_list(conf_decl_t *decl, config_setting_t *sett)
+static int decl_use_config_list(rattconf_decl_t *decl, config_setting_t *sett)
 {
 	config_setting_t *elem = NULL;
-	size_t len = 0;
 	const char *str = NULL;
-	long long num = 0;
-	int i, retval;
+	size_t len = 0;
+	int num = 0, i = 0;
+	int retval;
 
 	len = config_setting_length(sett);
 	if (len <= 0) {
@@ -256,106 +272,85 @@ static int decl_parse_list(conf_decl_t *decl, config_setting_t *sett)
 		return FAIL;
 	}
 
-	/* first alloc the table */
-	retval = decl_alloc_list(decl, len);
+	retval = list_create(decl->value, len, decl->type);
 	if (retval != OK) {
-		debug("decl_alloc_list() failed");
+		debug("list_create() failed");
 		return FAIL;
 	}
 
-	for (i = 0; i < len; ++i) {
-
-		elem = config_setting_get_elem(sett, i);
-		if (!elem) {
-			debug("config_setting_get_elem() failed");
-			return FAIL;
-		}
-
-		switch (decl->datatype) {
+	while ((elem = config_setting_get_elem(sett, i++)) != NULL) {
+		switch (decl->type) {
 		case RATTCONFDTSTR:
 			if (config_setting_type(elem) != CONFIG_TYPE_STRING) {
 				error("`%s' type mismatch; should be string",
 				    config_setting_name(sett));
 				return FAIL;
 			}
+
 			str = config_setting_get_string(elem);
 			if (!str) {
 				debug("config_setting_get_string() failed");
 				return FAIL;
-			} else {
-				retval = decl_strdup_elem(decl, str, i);
-				if (retval != OK) {
-					debug("decl_strdup_elem() failed");
-					return FAIL;
-				}
 			}
+
+			retval = set_value(decl->value,
+			    str, decl->type, decl->flags);
 			break;
 		case RATTCONFDTNUM8:
-			if (config_setting_type(elem) != CONFIG_TYPE_INT) {
-				error("`%s' type mismatch; should be numeric",
-				    config_setting_name(sett));
-				return FAIL;
-			}
-			num = config_setting_get_int(elem);
-			retval = decl_check_num(decl, num);
-			if (retval != OK) {
-				debug("decl_check_num() failed");
-				return FAIL;
-			}
-			if (decl->flags & RATTCONFFLUNS)
-				(*(decl->val.lst.num8u))[i] = (uint8_t) num;
-			else
-				(*(decl->val.lst.num8))[i] = (int8_t) num;
-			break;
 		case RATTCONFDTNUM16:
-			if (config_setting_type(elem) != CONFIG_TYPE_INT) {
-				error("`%s' type mismatch; should be numeric",
-				    config_setting_name(sett));
-				return FAIL;
-			}
-			num = config_setting_get_int(elem);
-			retval = decl_check_num(decl, num);
-			if (retval != OK) {
-				debug("decl_check_num() failed");
-				return FAIL;
-			}
-			if (decl->flags & RATTCONFFLUNS)
-				(*(decl->val.lst.num16u))[i] = (uint16_t) num;
-			else
-				(*(decl->val.lst.num16))[i] = (int16_t) num;
-			break;
 		case RATTCONFDTNUM32:
 			if (config_setting_type(elem) != CONFIG_TYPE_INT) {
 				error("`%s' type mismatch; should be numeric",
 				    config_setting_name(sett));
 				return FAIL;
 			}
+
 			num = config_setting_get_int(elem);
-			retval = decl_check_num(decl, num);
-			if (retval != OK) {
-				debug("decl_check_num() failed");
-				return FAIL;
-			}
-			if (decl->flags & RATTCONFFLUNS)
-				(*(decl->val.lst.num32u))[i] = (uint32_t) num;
-			else
-				(*(decl->val.lst.num32))[i] = (int32_t) num;
+			retval = set_value(decl->value,
+			    &num, decl->type, decl->flags);
 			break;
 		default:
-			debug("unknown datatype value of %i", decl->datatype);
+			debug("invalid value type `%i'", decl->type);
 			return FAIL;
 		}
 	}
+
+	if (--i < len) {
+		debug("config_setting_get_elem() failed prematurely");
+		debug("reporting %u elem, only got %u", len, i);
+	}
+
 	return OK;
 }
 
-static int decl_parse(conf_decl_t *decl, config_setting_t *sett)
+static int decl_use_config_value(rattconf_decl_t *decl, config_setting_t *sett)
 {
-	const char *str = NULL;
-	long long num = 0;
-	int retval;
+	char const *str = NULL;
+	int num, retval;
 
-	switch (decl->datatype) {
+	if (decl->flags & RATTCONFFLLST) {
+		if (config_setting_is_array(sett)) {
+			retval = decl_use_config_list(decl, sett);
+			if (retval != OK) {
+				debug("decl_use_config_list() failed");
+				return FAIL;
+			}
+
+			return OK;
+		}
+		
+		/*
+		 * declaration requires a list; but setting is not an array.
+		 * we allocate a table of one element to satisfy both.
+		 */
+		retval = list_create(decl->value, 1, decl->type);
+		if (retval != OK) {
+			debug("list_create() failed");
+			return FAIL;
+		}
+	}
+
+	switch (decl->type) {
 	case RATTCONFDTSTR:
 		if (config_setting_type(sett) != CONFIG_TYPE_STRING) {
 			error("`%s' type mismatch; should be string",
@@ -366,18 +361,11 @@ static int decl_parse(conf_decl_t *decl, config_setting_t *sett)
 		if (!str) {
 			debug("config_setting_get_string() failed");
 			return FAIL;
-		} else if (decl->flags & RATTCONFFLLST) {
-			/* store in a table even if alone */
-			if (decl_alloc_list(decl, 1) != OK) {
-				debug("decl_alloc_list() failed");
-				return FAIL;
-			}
-			retval = decl_strdup_elem(decl, str, 0);
-		} else 
-			retval = decl_strdup(decl, str);
+		}
 
+		retval = set_value(decl->value, str, decl->type, decl->flags);
 		if (retval != OK) {
-			debug("decl_strdup_elem() or decl_strdup() failed");
+			debug("set_value() failed");
 			return FAIL;
 		}
 		break;
@@ -390,30 +378,25 @@ static int decl_parse(conf_decl_t *decl, config_setting_t *sett)
 			return FAIL;
 		}
 		num = config_setting_get_int(sett);
-		retval = decl_check_num(decl, num);
+		retval = set_value(decl->value, &num, decl->type, decl->flags);
 		if (retval != OK) {
-			debug("decl_check_num() failed");
+			debug("set_value() failed");
 			return FAIL;
-		} else if (decl->flags & RATTCONFFLLST) {
-			/* store in a table even if alone */
-			if (decl_alloc_list(decl, 1) != OK) {
-				debug("decl_alloc_list() failed");
-				return FAIL;
-			}
-			(*(decl->val.lst.num32u))[0] = (uint32_t) num;
-		} else
-			*(decl->val.num) = num;
+		}
 		break;
 	default:
-		debug("unknown datatype value of %i", decl->datatype);
+		debug("invalid value type `%i'", decl->type);
 		return FAIL;
 
 	}
-
-	if (decl->val_cnt) /* user also wants to know */
-		*(decl->val_cnt) = 1;
-
+	
 	return OK;
+}
+
+void conf_close(config_t *cfg)
+{
+	RATTLOG_TRACE();
+	config_destroy(&l_cfg);
 }
 
 int conf_open(const char *file)
@@ -428,96 +411,74 @@ int conf_open(const char *file)
 	return OK;
 }
 
-void conf_table_release(conf_decl_t *conftable)
+void conf_release(rattconf_decl_t *decl)
 {
 	RATTLOG_TRACE();
-	conf_decl_t *decl = NULL;
-	int i = 0;
 
-	while ((decl = &conftable[i++]) && decl->path != NULL)
+	for (; decl && decl->path; decl++)
 	{
 		if (decl->flags & RATTCONFFLLST) {
-			decl_release_list(decl);
+			list_destroy(decl->value, decl->type);
 			continue;
 		}
-	
-		switch (decl->datatype) {
-		case RATTCONFDTSTR:
-			debug("releasing memory for `%s'", decl->path);
-			free(*(decl->val.str));
-			break;
-		case RATTCONFDTNUM8:
-		case RATTCONFDTNUM16:
-		case RATTCONFDTNUM32:
-			/* empty */
-			break;
-		default:
-			debug("unknown datatype value of %i", decl->datatype);
-			continue;
-		}
+
+		unset_value(decl->value, decl->type);
 	}
 }
 
-int conf_table_parse(conf_decl_t *conftable)
+int conf_parse(char const *parent, rattconf_decl_t *decl)
 {
 	RATTLOG_TRACE();
-	conf_decl_t *decl = NULL;
 	config_setting_t *sett = NULL;
-	int retval, i = 0;
+	char settpath[CONF_SETTPATHMAX] = { '\0' };
+	char *declpath = NULL;
+	size_t declmaxsiz = CONF_SETTPATHMAX - 1; /* trailing NULL byte */
+	size_t parlen = 0;
+	int retval;
 
-	while ((decl = &conftable[i++]) && decl->path != NULL)
+	if (parent) {
+		parlen = strlen(parent);
+		if (parlen >= CONF_SETTPATHMAX) {
+			debug("parent name is too long `%s'", parent);
+			return FAIL;
+		} else {
+			strncpy(settpath, parent, CONF_SETTPATHMAX);
+			declpath = settpath + parlen;
+			*declpath = '/';
+			declmaxsiz -= parlen;
+			declpath++;
+		}
+	}
+
+	for (; decl && decl->path; decl++)
 	{
-		sett = config_lookup(&l_cfg, decl->path);
+		if (parent) {
+			if (strlen(decl->path) > declmaxsiz) {
+				debug("no space left for `%s'", decl->path);
+				return FAIL;
+			}
+			strncpy(declpath, decl->path, declmaxsiz);
+			sett = config_lookup(&l_cfg, settpath);
+		} else
+			sett = config_lookup(&l_cfg, decl->path);
+
 		if (!sett && (decl->flags & RATTCONFFLREQ)) {
 			error("`%s' declaration is mandatory", decl->path);
 			return FAIL;
-		} else if (!sett) {
-			/* use default, then. */
-			if (decl->flags & RATTCONFFLLST) {
-				/* uh oh; a list of default */
-				warning("`%s' not found, using default",
-				    decl->path);
-				decl_defval_list(decl);
-				continue;
-			}
-
-			switch (decl->datatype) {
-			case RATTCONFDTSTR:
-				warning("`%s' not found, using `%s'",
-				    decl->path, decl->defval.str);
-				retval = decl_strdup(decl, decl->defval.str);
-				if (retval != OK) {
-					debug("decl_strdup() failed");
-					return FAIL;
-				}
-				break;
-			case RATTCONFDTNUM8:
-			case RATTCONFDTNUM16:
-			case RATTCONFDTNUM32:
-				if (decl->flags & RATTCONFFLUNS)
-					warning("`%s' not found, using `%u'",
-					    decl->path, decl->defval.num);
-				else
-					warning("`%s' not found, using `%i'",
-					    decl->path, decl->defval.num);
-				*(decl->val.num) = decl->defval.num;
-				break;
+		} else if (!sett) {	/* set to default value */
+			retval = decl_use_default_value(decl);
+			if (retval != OK) {
+				debug("decl_use_default_value() failed");
+				return FAIL;
 			}
 			continue;
-		}
-
-		if ((decl->flags & RATTCONFFLLST)
-		    && (config_setting_is_array(sett))) {
-			/* declaration allows multiple value */
-			retval = decl_parse_list(decl, sett);
-		} else
-			retval = decl_parse(decl, sett);
-
-		if (retval != OK) {
-			debug("decl_parse_list() or decl_parse() failed");
-			error("configuration parser failed at line %i",
-			    config_setting_source_line(sett));
-			return FAIL;
+		} else { /* set to config value */
+			retval = decl_use_config_value(decl, sett);
+			if (retval != OK) {
+				debug("decl_use_config_value() failed");
+				return FAIL;
+			}
+			continue;
 		}
 	}
 	return OK;
@@ -525,8 +486,7 @@ int conf_table_parse(conf_decl_t *conftable)
 
 void conf_fini(void *udata)
 {
-	RATTLOG_TRACE();
-	config_destroy(&l_cfg);
+	/* empty */
 }
 
 int conf_init(void)

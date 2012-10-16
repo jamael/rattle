@@ -106,10 +106,8 @@ static void fini(void)
 {
 	RATTLOG_TRACE();
 
-	/* callback registered destructor and finish */
+	/* callback registered destructor */
 	dtor_callback();
-	dtor_fini(NULL);
-	conf_fini(NULL);
 }
 
 int main(int argc, char * const argv[])
@@ -124,16 +122,9 @@ int main(int argc, char * const argv[])
 		exit(1);
 	}
 
-	/* load configuration file */
-	if (conf_init() != OK || load_config() != OK) {
-		debug("conf_init() or load_config() failed");
-		exit(1);
-	}
-
 	/* initialize global destructor register */
 	if (dtor_init() != OK) {
 		debug("dtor_init() failed");
-		conf_fini(NULL);
 		exit(1);
 	}
 
@@ -142,13 +133,17 @@ int main(int argc, char * const argv[])
 	if (retval != 0) {
 		error("cannot register main destructor");
 		debug("atexit() returns %i", retval);
-		dtor_fini(NULL);
-		conf_fini(NULL);
 		exit(1);
 	}
 
 	/* From now on, finish functions (_fini)
 	   must register with dtor_register(). */ 
+
+	/* load configuration file */
+	if (conf_init() != OK || load_config() != OK) {
+		debug("conf_init() or load_config() failed");
+		exit(1);
+	}
 
 	/* initialize modules */
 	if (module_init() != OK) {
@@ -166,6 +161,9 @@ int main(int argc, char * const argv[])
 		debug("rattd_init() failed");
 		exit(1);
 	}
+
+	/* release config file */
+	conf_close();
 
 	/* processor */
 

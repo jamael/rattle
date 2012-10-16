@@ -40,7 +40,7 @@ typedef struct {
 
 /* destructor table initial size */
 #ifndef DTOR_TABLESIZ
-#define DTOR_TABLESIZ	1
+#define DTOR_TABLESIZ	4
 #endif
 static RATT_TABLE_INIT(l_dtortable);	/* destructor table */
 

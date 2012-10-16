@@ -26,6 +26,7 @@
  */
 
 
+#include <errno.h>
 #include <libconfig.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -322,6 +323,7 @@ static int decl_use_config_list(rattconf_decl_t *decl, config_setting_t *sett)
 	if (--i < len) {
 		debug("config_setting_get_elem() failed prematurely");
 		debug("reporting %u elem, only got %u", len, i);
+		return FAIL;
 	}
 
 	return OK;
@@ -418,12 +420,27 @@ void conf_close(void)
 int conf_open(const char *file)
 {
 	RATTLOG_TRACE();
+	config_error_t err = CONFIG_ERR_NONE;
+
 	if (config_read_file(&l_cfg, file) != CONFIG_TRUE) {
 		debug("config_read_file() failed");
-		error("%s at line %i", config_error_text(&l_cfg),
+		err = config_error_type(&l_cfg);
+	}
+
+	switch (err) {
+	case CONFIG_ERR_FILE_IO:
+		error("%s: %s", file, strerror(errno));
+		return FAIL;
+	case CONFIG_ERR_PARSE:
+		error("%s: %s at line %i", file, config_error_text(&l_cfg),
 		    config_error_line(&l_cfg));
 		return FAIL;
+	default:
+	case CONFIG_ERR_NONE:
+		/* success */
+		break;
 	}
+
 	return OK;
 }
 
@@ -473,8 +490,7 @@ int conf_parse(char const *parent, rattconf_decl_t *decl)
 		if (parent) {
 			if (strlen(decl->path) > declmaxsiz) {
 				debug("no space left for `%s'", decl->path);
-				conf_release_reverse(first, decl);
-				return FAIL;
+				break;
 			}
 			strncpy(declpath, decl->path, declmaxsiz);
 			sett = config_lookup(&l_cfg, settpath);
@@ -483,26 +499,31 @@ int conf_parse(char const *parent, rattconf_decl_t *decl)
 
 		if (!sett && (decl->flags & RATTCONFFLREQ)) {
 			error("`%s' declaration is mandatory", decl->path);
-			conf_release_reverse(first, decl);
-			return FAIL;
+			break;
 		} else if (!sett) {	/* set to default value */
 			retval = decl_use_default_value(decl);
 			if (retval != OK) {
 				debug("decl_use_default_value() failed");
-				conf_release_reverse(first, decl);
-				return FAIL;
+				break;
 			}
 			continue;
 		} else { /* set to config value */
 			retval = decl_use_config_value(decl, sett);
 			if (retval != OK) {
 				debug("decl_use_config_value() failed");
-				conf_release_reverse(first, decl);
-				return FAIL;
+				error("parser failed at line %i",
+				    config_setting_source_line(sett));
+				break;
 			}
 			continue;
 		}
 	}
+
+	if (retval != OK) {
+		conf_release_reverse(first, decl);
+		return FAIL;
+	}
+
 	return OK;
 }
 

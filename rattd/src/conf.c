@@ -126,11 +126,16 @@ static int set_value(void *dst, void const * const src, int type, int flags)
 {
 	void *tail = NULL;
 	char **str = dst;
-	int *num = dst;
 	int retval;
 
 	if (!dst || !src) {
 		debug("either src or dst pointer is NULL");
+		return FAIL;
+	}
+
+	retval = check_num(type, (int) *((int *)src), (flags & RATTCONFFLUNS));
+	if (retval != OK) {
+		debug("check_num() failed");
 		return FAIL;
 	}
 
@@ -140,8 +145,7 @@ static int set_value(void *dst, void const * const src, int type, int flags)
 			debug("ratt_table_get_tail_next() failed");
 			return FAIL;
 		}
-		str = tail;
-		num = tail;
+		str = dst = tail;
 	}
 
 	switch (type) {
@@ -154,14 +158,13 @@ static int set_value(void *dst, void const * const src, int type, int flags)
 		}
 		break;
 	case RATTCONFDTNUM8:
+		memcpy(dst, src, sizeof(int8_t));
+		break;
 	case RATTCONFDTNUM16:
+		memcpy(dst, src, sizeof(int16_t));
+		break;
 	case RATTCONFDTNUM32:
-		*num = (int) *((int *)src);
-		retval = check_num(type, *num, (flags & RATTCONFFLUNS));
-		if (retval != OK) {
-			debug("check_num() failed");
-			return FAIL;
-		}
+		memcpy(dst, src, sizeof(int32_t));
 		break;
 	default:
 		debug("invalid value type `%i'", type);

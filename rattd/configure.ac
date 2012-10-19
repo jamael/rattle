@@ -12,6 +12,8 @@ AC_PROG_LIBTOOL
 
 # Checks for header files.
 AC_HEADER_STDC
+AC_HEADER_DIRENT
+AC_DECL_SYS_SIGLIST
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST

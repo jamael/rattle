@@ -2,6 +2,15 @@
 # src/Makefile.am
 #
 
+#
+# Automake defines DEFAULT_INCLUDES to look into -I. for header files.
+# However, that prevents picking up the desired system header if a local
+# header of the same name exists in the source.
+#
+# #include <foo.h> and #include "foo.h" exists for that specific purpose.
+#
+DEFAULT_INCLUDES =
+
 sbin_PROGRAMS = rattd
-rattd_SOURCES = rattd.c conf.c main.c dtor.c log.c module.c table.c
+rattd_SOURCES = rattd.c conf.c main.c dtor.c log.c module.c table.c proc.c signal.c
 rattd_LDFLAGS = @libconfig_LIBS@ @LIBADD_DLOPEN@ -rdynamic

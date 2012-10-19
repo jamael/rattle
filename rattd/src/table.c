@@ -97,6 +97,32 @@ int ratt_table_search(ratt_table_t *table, void **retchunk,
 	return FAIL;
 }
 
+int ratt_table_del_current(ratt_table_t *table)
+{
+	RATTLOG_TRACE();
+	void *chunk = NULL;
+
+	chunk = ratt_table_get_current(table);
+	if (!chunk) {
+		debug("ratt_table_get_current() failed");
+		return FAIL;
+	}
+
+	debug("deleting chunk at %p", chunk);
+	memset(chunk, 0, table->chunk_size);
+	table->chunk_count--;
+
+	/* if chunk is the tail, move the tail back */
+	if (ratt_table_istail(table, chunk)
+	    && !ratt_table_ishead(table, chunk)) {
+		table->tail = chunk - table->chunk_size;
+		table->last--;
+		debug("moved tail back to %p", table->tail);
+	}
+
+	return OK;
+}
+
 int ratt_table_get_tail_next(ratt_table_t *table, void **tail)
 {
 	RATTLOG_TRACE();

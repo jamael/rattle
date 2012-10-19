@@ -45,6 +45,16 @@ static inline int ratt_table_isempty(ratt_table_t *table)
 	return ((!ratt_table_exists(table)) || !table->chunk_count);
 }
 
+static inline int ratt_table_ishead(ratt_table_t *table, void *chunk)
+{
+	return (ratt_table_exists(table) && (chunk == table->head));
+}
+
+static inline int ratt_table_istail(ratt_table_t *table, void *chunk)
+{
+	return (ratt_table_exists(table) && (chunk == table->tail));
+}
+
 static inline void *ratt_table_get_first(ratt_table_t *table)
 {
 	return (ratt_table_isempty(table)) ? NULL : table->head;
@@ -82,5 +92,6 @@ extern int ratt_table_push(ratt_table_t *, void const *);
 extern int ratt_table_search(ratt_table_t *, void **,
     int (*)(void const *, void const *), void const *);
 extern int ratt_table_get_tail_next(ratt_table_t *, void **);
+extern int ratt_table_del_current(ratt_table_t *);
 
 #endif /* RATTLE_TABLE_H */

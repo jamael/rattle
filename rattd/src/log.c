@@ -45,62 +45,11 @@
 #endif
 static RATT_TABLE_INIT(l_calltable);	/* callback table */
 
-/*
- * standard logger module (should have its own file)
- */
-#define MODULE_NAME	RATTLOG "_std"
-#define MODULE_DESC	"Standard logger"
-#define MODULE_VERSION	VERSION
-
-static void log_std_msg(int, char const *);
-static rattlog_callback_t log_std_callbacks = {
-	.on_msg = &log_std_msg
-};
-
-static rattmod_entry_t log_std_entry = {
-	.name = MODULE_NAME,
-	.desc = MODULE_DESC,
-	.version = MODULE_VERSION,
-	.callbacks = &log_std_callbacks
-};
-
-#define TIMESTRSIZ 21	/* %d %b %Y %T + \0 */
-static void log_std_msg(int level, char const *msg)
-{
-	FILE *out = NULL;
-	char timestr[TIMESTRSIZ] = { '\0' };
-	struct tm tmres;
-	time_t now;
-
-	out = (level > RATTLOGERR) ? stdout : stderr;
-
-	/* datetime prefix */
-	if (((now = time(NULL)) != (time_t) -1)
-	    && (localtime_r(&now, &tmres) != NULL)
-	    && (strftime(timestr, TIMESTRSIZ, "%d %b %Y %T", &tmres) > 0))
-		fprintf(out, "[%s] ", timestr);
-	/* level name prefix */
-	fprintf(out, "%s: ", rattlog_level_to_name(level));
-	/* message */
-	fprintf(out, "%s", msg);
-}
-
-/*
- * end of standard logger module
- */
-
-/* logger state */
-static enum {
-	LOG_BOOT = 0,		/* bootstraping */
-	LOG_INIT,		/* initialized */
-	LOG_FINI		/* finishing */
-} l_state = LOG_BOOT;
-
 /* logger verbosity level */
 static int l_verbose = RATTLOGMAX;
 
 #ifndef RATTD_LOG_MODULE
-#define RATTD_LOG_MODULE "std"
+#define RATTD_LOG_MODULE "syslog"
 #endif
 static RATTCONF_DEFVAL(l_conf_module_defval, RATTD_LOG_MODULE);
 static RATTCONF_LIST_INIT(l_conf_module);
@@ -115,7 +64,7 @@ static conf_decl_t l_conftable[] = {
 	{ "verbose", "level of verbosity",
 	    l_conf_verbose_defval, &l_conf_verbose,
 	    RATTCONFDTSTR, 0 },
-	{ "module", "list of modules to use as a logger",
+	{ "module", "list of logger modules to use",
 	    l_conf_module_defval, &l_conf_module,
 	    RATTCONFDTSTR, RATTCONFFLLST },
 	{ NULL }
@@ -154,6 +103,27 @@ static void load_modules_callbacks(void)
 	}
 }
 
+#define TIMESTRSIZ 21	/* %d %b %Y %T + \0 */
+static void log_msg(int level, char const *msg)
+{
+	FILE *out = NULL;
+	char timestr[TIMESTRSIZ] = { '\0' };
+	struct tm tmres;
+	time_t now;
+
+	out = (level > RATTLOGERR) ? stdout : stderr;
+
+	/* datetime prefix */
+	if (((now = time(NULL)) != (time_t) -1)
+	    && (localtime_r(&now, &tmres) != NULL)
+	    && (strftime(timestr, TIMESTRSIZ, "%d %b %Y %T", &tmres) > 0))
+		fprintf(out, "[%s] ", timestr);
+	/* level name prefix */
+	fprintf(out, "%s: ", rattlog_level_to_name(level));
+	/* message */
+	fprintf(out, "%s", msg);
+}
+
 void rattlog_msg(int level, const char *fmt, ...)
 {
 	rattlog_callback_t *callback = NULL;
@@ -167,22 +137,20 @@ void rattlog_msg(int level, const char *fmt, ...)
 	vsnprintf(msg, RATTLOG_MSGSIZMAX, fmt, ap);
 	va_end(ap);
 
-	/* if logger is up, use registered callbacks */
-	if (l_state == LOG_INIT) {
-		RATT_TABLE_FOREACH(&l_calltable, callback)
-		{
-			if (callback->on_msg)
-				callback->on_msg(level, msg);
-		}
-	} else	/* default to standard logger */
-		log_std_msg(level, msg);
+	/* builtin standard logger */
+	log_msg(level, msg);
+
+	/* registered logger module */
+	RATT_TABLE_FOREACH(&l_calltable, callback)
+	{
+		if (callback->on_msg)
+			callback->on_msg(level, msg);
+	}
 }
 
 void log_fini(void *udata)
 {
 	RATTLOG_TRACE();
-	l_state = LOG_FINI;
-//	rattmod_unregister(&log_std_entry);
 	module_parent_detach(RATTLOG);
 	ratt_table_destroy(&l_calltable);
 	conf_release(l_conftable);
@@ -191,7 +159,7 @@ void log_fini(void *udata)
 int log_init(void)
 {
 	RATTLOG_TRACE();
-	int retval;
+	int retval, level;
 
 	retval = conf_parse(RATTLOG, l_conftable);
 	if (retval != OK) {
@@ -199,10 +167,10 @@ int log_init(void)
 		return FAIL;
 	}
 
-	retval = rattlog_name_to_level(l_conf_verbose);
-	if (retval < RATTLOGMAX) {
+	level = rattlog_name_to_level(l_conf_verbose);
+	if (level < RATTLOGMAX) {
 		notice("switching to verbose level `%s'", l_conf_verbose);
-		l_verbose = retval;
+		l_verbose = level;
 	} else
 		warning("unknown verbose level `%s'", l_conf_verbose);
 
@@ -224,28 +192,6 @@ int log_init(void)
 		return FAIL;
 	}
 
-	/* register standard logger */
-	retval = rattmod_register(&log_std_entry);
-	if (retval != OK) {
-		debug("%s failed to register", MODULE_NAME);
-		debug("rattmod_register() failed");
-		module_parent_detach(RATTLOG);
-		ratt_table_destroy(&l_calltable);
-		conf_release(l_conftable);
-		return FAIL;
-	}
-	
-	retval = module_attach(RATTLOG, MODULE_NAME);
-	if (retval != OK) {
-		debug("%s failed to attach", MODULE_NAME);
-		debug("module_attach() failed");
-//		rattmod_unregister(&log_std_entry);
-		module_parent_detach(RATTLOG);
-		ratt_table_destroy(&l_calltable);
-		conf_release(l_conftable);
-		return FAIL;
-	}
-
 	/* load modules from config */
 	load_modules_callbacks();
 
@@ -257,9 +203,6 @@ int log_init(void)
 		conf_release(l_conftable);
 		return FAIL;
 	}
-
-	/* logger is up */
-	l_state = LOG_INIT;
 
 	return OK;
 }

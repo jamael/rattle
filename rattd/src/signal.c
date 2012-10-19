@@ -34,6 +34,8 @@
 #include <rattle/log.h>
 #include <rattle/table.h>
 
+#define signum_to_string(n) sys_siglist[(n)]
+
 static void handle_signal(int, siginfo_t *, void *);
 struct sigaction l_sigaction = { .sa_sigaction = &handle_signal };
 
@@ -135,8 +137,9 @@ static int register_signal(int signum)
 
 		sigaction(signum, &l_sigaction, NULL);
 
-		debug("registered signal number %i, slot %i",
-		    signum, ratt_table_pos_last(&l_sigtable));
+		debug("registered `%s' signal number %i, slot %i",
+		    signum_to_string(signum), signum,
+		    ratt_table_pos_last(&l_sigtable));
 		return OK;
 	}
 

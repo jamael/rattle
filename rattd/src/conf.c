@@ -133,7 +133,20 @@ static int set_value(void *dst, void const * const src, int type, int flags)
 		return FAIL;
 	}
 
-	retval = check_num(type, (int) *((int *)src), (flags & RATTCONFFLUNS));
+	/*
+	 * We check for numeric boundaries first even if source value
+	 * type is not known yet -- three reasons I see:
+	 *
+	 * 1. check_num() knows about value type so only numbers may fail
+	 *    the check.  That and invalid value type.
+	 *
+	 * 2. Saves the work of a _get_tail_next() if a list is requested
+	 *    and the numeric value is rejected soon after.
+	 *
+	 * 3. This makes the code easier to read than multiple
+	 *    check_num() in the switch()-case below.
+	 */
+	retval = check_num(type, *((int *)src), (flags & RATTCONFFLUNS));
 	if (retval != OK) {
 		debug("check_num() failed");
 		return FAIL;

@@ -236,6 +236,12 @@ int module_attach(char const *parname, char const *modname)
 
 	parlen = strlen(parname);
 	modlen = strlen(modname);
+
+	if (!modlen) { /* module with no name */
+		debug("reject module with no name");
+		return FAIL;
+	}
+
 	separator += parlen;
 
 	if ((modlen > (parlen + 2)) && (!strncmp(parname, modname, parlen)

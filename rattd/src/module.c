@@ -145,14 +145,14 @@ static int load_modules()
 	return OK;
 }
 
-static int parent_compare(void const *in, void const *find)
+static int compare_parent_name(void const *in, void const *find)
 {
 	module_parent_t const *parent = in;
 	char const *name = find;
 	return (strcmp(parent->name, name)) ? FAIL : OK;
 }
 
-static int module_compare(void const *in, void const *find)
+static int compare_module_name(void const *in, void const *find)
 {
 	rattmod_entry_t const *module = in;
 	char const *name = find;
@@ -167,7 +167,7 @@ static int __module_attach(char const *parname, char const *modname)
 	int retval;
 
 	retval = ratt_table_search(&l_partable, (void **) &parent,
-	    &parent_compare, parname);
+	    &compare_parent_name, parname);
 	if (retval != OK) {
 		debug("could not find parent `%s'", parname);
 		debug("ratt_table_search() failed");
@@ -175,7 +175,7 @@ static int __module_attach(char const *parname, char const *modname)
 	}
 
 	retval = ratt_table_search(&l_modtable, (void **) &module,
-	    &module_compare, modname);
+	    &compare_module_name, modname);
 	if (retval != OK) {
 		debug("could not find module `%s'", modname);
 		debug("ratt_table_search() failed");
@@ -207,7 +207,7 @@ int rattmod_register(rattmod_entry_t const *entry)
 	}
 
 	retval = ratt_table_search(&l_modtable, (void **) &module,
-	    &module_compare, entry->name);
+	    &compare_module_name, entry->name);
 	if (retval == OK) {
 		debug("module `%s' exists in table", entry->name);
 		return FAIL;
@@ -265,7 +265,7 @@ int module_parent_detach(char const *parname)
 	int retval;
 
 	retval = ratt_table_search(&l_partable, (void **) &parent,
-	    &parent_compare, parname);
+	    &compare_parent_name, parname);
 	if (retval != OK) {
 		debug("ratt_table_search() failed");
 		return FAIL;

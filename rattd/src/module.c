@@ -234,11 +234,15 @@ int module_attach(char const *parname, char const *modname)
 	char const *separator = modname;
 	size_t parlen, modlen;
 
-	parlen = strlen(parname);
 	modlen = strlen(modname);
-
 	if (!modlen) { /* module with no name */
 		debug("reject module with no name");
+		return FAIL;
+	}
+
+	parlen = strlen(parname);
+	if (!parlen) { /* parent with no name */
+		debug("reject parent with no name");
 		return FAIL;
 	}
 

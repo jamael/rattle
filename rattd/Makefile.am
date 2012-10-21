@@ -12,4 +12,5 @@ rattle_include_HEADERS = \
 	include/rattle/def.h \
 	include/rattle/log.h \
 	include/rattle/module.h \
+	include/rattle/proc.h \
 	include/rattle/table.h

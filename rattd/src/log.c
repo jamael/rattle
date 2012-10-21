@@ -41,6 +41,9 @@
 #include "dtor.h"
 #include "module.h"
 
+/* name of the config declaration */
+#define LOG_CONF_NAME	"logger"
+
 /* callback table initial size */
 #ifndef LOG_CALLTABLESIZ
 #define LOG_CALLTABLESIZ	4
@@ -163,7 +166,7 @@ int log_init(void)
 	RATTLOG_TRACE();
 	int retval, level;
 
-	retval = conf_parse(RATTLOG, l_conftable);
+	retval = conf_parse(LOG_CONF_NAME, l_conftable);
 	if (retval != OK) {
 		debug("conf_parse() failed");
 		return FAIL;

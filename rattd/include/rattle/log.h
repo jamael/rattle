@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define RATTLOG	"logger"	/* name of this module parent */
+#define RATTLOG	"log"	/* name of this module parent */
 #define RATTLOG_VERSION_MAJOR 0	/* major version */
 #define RATTLOG_VERSION_MINOR 1 /* minor version */
 

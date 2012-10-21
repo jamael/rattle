@@ -25,6 +25,7 @@
  * SUCH DAMAGE.
  */
 
+
 #include <config.h>
 
 #include <stddef.h>
@@ -46,7 +47,7 @@
 #include "signal.h"
 
 #ifndef RATTD_VERSION
-#define RATTD_VERSION VERSION	/* from configure.ac */
+#define RATTD_VERSION VERSION
 #endif
 
 #ifndef CONFFILEPATH

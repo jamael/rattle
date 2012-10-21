@@ -26,6 +26,8 @@
  */
 
 
+#include <config.h>
+
 #include <stdint.h>
 
 #include <rattle/conf.h>

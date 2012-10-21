@@ -42,9 +42,7 @@ PKG_CHECK_MODULES([libconfig], [libconfig >= 1.3],,
 AC_SUBST(libconfig_CFLAGS)
 AC_SUBST(libconfig_LIBS)
 
-# absolute path to SRCDIR
-#srcroot=$(cd $srcdir; pwd)
-#AM_CPPFLAGS="-I$abs_top_srcdir/include $AM_CPPFLAGS"
-#AC_SUBST(AM_CPPFLAGS)
+AC_DEFINE([DEBUG], [1],
+  [Define to 1 if you want debugging code to be compiled in.])
 
 m4_include([m4/rattle.m4])

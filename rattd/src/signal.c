@@ -26,6 +26,8 @@
  */
 
 
+#include <config.h>
+
 #include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>

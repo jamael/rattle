@@ -1,0 +1,35 @@
+#!/bin/sh
+set -e
+(
+#
+# change directory to project root
+#
+cd `dirname "$0"`/..
+
+#
+# configure.ac
+#
+cp config.m4 configure.ac
+for ii in modules/*/*/config.m4; do
+	cat $ii >> configure.ac
+done
+echo "AC_OUTPUT" >> configure.ac
+
+#
+# modules/Makefile.am
+#
+cp modules/Makefile.global modules/Makefile.am
+for ii in modules/*/*/Makefile.am; do
+	cat $ii >> modules/Makefile.am
+done
+
+#
+# invoke autoconf
+#
+autoreconf -fvi
+
+#
+# cleanup
+#
+rm -rf autom4te.cache
+)

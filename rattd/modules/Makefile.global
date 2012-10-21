@@ -1,0 +1,8 @@
+#
+# modules/Makefile.global
+#
+
+AM_LDFLAGS = -module -avoid-version
+
+pkglib_LTLIBRARIES =
+EXTRA_LTLIBRARIES =

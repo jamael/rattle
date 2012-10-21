@@ -2,7 +2,7 @@
 # modules/logger/cons/Makefile.am
 #
 
-pkglib_LTLIBRARIES = log_cons.la
-
-log_cons_la_SOURCES = log_cons.c
-log_cons_la_LDFLAGS = -module -avoid-version
+if WANT_LOGGER_CONS
+pkglib_LTLIBRARIES += logger_cons.la
+logger_cons_la_SOURCES = logger/cons/logger_cons.c
+endif

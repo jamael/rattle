@@ -1,9 +1,19 @@
 AC_INIT([rattd], [0.1])
 
-AC_CONFIG_SRCDIR(LICENSE)
-AC_CANONICAL_HOST
+m4_include([m4/rattle.m4])
+AC_DEFUN([RATTLE_MODULE_SRCDIR], [$srcroot/modules/]translit($1,A-Z_,a-z/))
 
-AM_INIT_AUTOMAKE(foreign)
+AC_CONFIG_SRCDIR([LICENSE])
+AC_CONFIG_HEADERS([include/config.h])
+AC_CONFIG_AUX_DIR([build])
+AC_CONFIG_MACRO_DIR([m4])
+
+AC_CONFIG_FILES([Makefile
+		include/Makefile
+		modules/Makefile
+		src/Makefile])
+
+AM_INIT_AUTOMAKE([foreign subdir-objects])
 
 # Checks for programs.
 AC_PROG_CC
@@ -37,15 +47,3 @@ AC_SUBST(libconfig_LIBS)
 srcroot=$(cd $srcdir; pwd)
 AM_CPPFLAGS="-I$srcroot/include $AM_CPPFLAGS"
 AC_SUBST(AM_CPPFLAGS)
-
-#
-# There is way too much Makefile for nothing...
-#
-AC_CONFIG_FILES([Makefile
-		include/Makefile
-		include/rattle/Makefile
-		modules/Makefile
-		modules/logger/Makefile
-		modules/logger/cons/Makefile
-		src/Makefile])
-AC_OUTPUT

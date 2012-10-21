@@ -64,7 +64,7 @@ static rattconf_decl_t l_conftable[] = {
 
 static int attach_module(rattmod_entry_t *modentry)
 {
-	/* process does not support module chaining */
+	/* cannot attach multiple processor */
 	if (l_proc_module) {
 		debug("module `%s' attached first, reject `%s'",
 		    l_proc_module->name, modentry->name);

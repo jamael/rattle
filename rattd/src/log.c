@@ -1,5 +1,5 @@
 /*
- * RATTLE logger
+ * RATTLE logger module parent
  * Copyright (c) 2012, Jamael Seun
  * All rights reserved.
  * 
@@ -77,13 +77,7 @@ static conf_decl_t l_conftable[] = {
 
 static int attach_module(rattmod_entry_t *modentry)
 {
-	RATTLOG_TRACE();
 	int retval;
-
-	if (!(modentry->callbacks)) {
-		debug("module `%s' provides no callback");
-		return FAIL;
-	}
 
 	retval = ratt_table_push(&l_calltable, modentry->callbacks);
 	if (retval != OK) {
@@ -192,8 +186,14 @@ int log_init(void)
 		return FAIL;
 	}
 
-	/* load modules from config */
-	load_modules_callbacks();
+	retval = rattmod_attach_from_config(RATTLOG, &l_conf_module);
+	if (retval != OK) {
+		debug("rattmod_attach_from_config() failed");
+		module_parent_detach(RATTLOG);
+		ratt_table_destroy(&l_calltable);
+		conf_release(l_conftable);
+		return FAIL;
+	}
 
 	retval = dtor_register(log_fini, NULL);
 	if (retval != OK) {

@@ -16,11 +16,40 @@ typedef struct {
 
 	char const *parent_name;	/* name of module parent */
 
-	conf_decl_t *conftable;		/* config table */
+	rattconf_decl_t *conftable;	/* config table */
 	void *callbacks;		/* module callbacks */
 
 	unsigned int flags;		/* module flags */
 } rattmod_entry_t;
+
+/**
+ * \fn static inline int
+ * rattmod_attach_from_config(char const *parname, rattconf_list_t *modules)
+ * \brief attach modules from config setting
+ *
+ * Helper to attach modules found in a config list setting.
+ *
+ * \param parname	parent name to attach modules to
+ * \param modules	list of modules name in a config setting
+ */
+static inline int
+rattmod_attach_from_config(char const *parname, rattconf_list_t *modules)
+{
+	RATTLOG_TRACE();
+	char **name = NULL;
+	int retval;
+
+	RATTCONF_LIST_FOREACH(modules, name)
+	{
+		retval = module_attach(parname, *name);
+		if (retval != OK) {
+			debug("module_attach() failed");
+			return FAIL;
+		}
+	}
+
+	return OK;
+}
 
 extern int rattmod_register(rattmod_entry_t const *);
 extern int rattmod_unregister(rattmod_entry_t const *);

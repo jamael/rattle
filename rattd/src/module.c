@@ -161,7 +161,7 @@ static int compare_module_name(void const *in, void const *find)
 	return (strcmp(module->name, name)) ? FAIL : OK;
 }
 
-static int __module_attach(char const *parname, char const *modname)
+static int attach_module(char const *parname, char const *modname)
 {
 	RATTLOG_TRACE();
 	rattmod_entry_t *module = NULL;
@@ -197,38 +197,6 @@ static int __module_attach(char const *parname, char const *modname)
 	return OK;
 }
 
-int rattmod_register(rattmod_entry_t const *entry)
-{
-	RATTLOG_TRACE();
-	rattmod_entry_t *module = NULL;
-	int retval;
-
-	if (!entry) {
-		debug("cannot register a NULL module entry");
-		return FAIL;
-	}
-
-	retval = ratt_table_search(&l_modtable, (void **) &module,
-	    &compare_module_name, entry->name);
-	if (retval == OK) {
-		debug("module `%s' exists in table", entry->name);
-		return FAIL;
-	}
-
-	retval = ratt_table_push(&l_modtable, entry);
-	if (retval != OK) {
-		warning("failed to register module `%s'", entry->name);
-		debug("ratt_table_push() failed");
-		return FAIL;
-	}
-
-	notice("loaded module `%s'", entry->name);
-	debug("registered module entry %p, slot %i",
-	    entry, ratt_table_pos_last(&l_modtable));
-
-	return OK;
-}
-
 int module_attach(char const *parname, char const *modname)
 {
 	RATTLOG_TRACE();
@@ -252,12 +220,12 @@ int module_attach(char const *parname, char const *modname)
 
 	if ((modlen > (parlen + 2)) && (!strncmp(parname, modname, parlen)
 	    && (*separator == '_'))) /* modname with parname_ prefix ok */
-		return __module_attach(parname, modname);
+		return attach_module(parname, modname);
 
 	/* modname must be prefixed with parname_ */
 	snprintf(realmodname, RATTMOD_NAMEMAXSIZ, "%s_%s", parname, modname);
 
-	return __module_attach(parname, realmodname);
+	return attach_module(parname, realmodname);
 }
 
 int module_parent_detach(char const *parname)
@@ -273,8 +241,7 @@ int module_parent_detach(char const *parname)
 		return FAIL;
 	}
 
-	/* clearing the chunk is enough to detach */
-	memset(parent, 0, sizeof(module_parent_t));
+	ratt_table_del_current(&l_partable);
 
 	return OK;
 }
@@ -282,22 +249,122 @@ int module_parent_detach(char const *parname)
 int module_parent_attach(char const *parname, int (*attach)(rattmod_entry_t *))
 {
 	RATTLOG_TRACE();
-	module_parent_t parent = { parname, attach };
+	module_parent_t *parent, new_parent = { parname, attach };
 	int retval;
 
 	if (!parname) {
 		debug("cannot register parent without a name");
 		return FAIL;
+	} else if (!attach) {
+		debug("cannot register parent without attach callback");
+		return FAIL;
 	}
 
-	retval = ratt_table_push(&l_partable, &parent);
+	retval = ratt_table_search(&l_partable, (void **) &parent,
+	    &compare_parent_name, parname);
+	if (retval == OK) {
+		debug("module parent `%s' exists in table", parname);
+		return FAIL;
+	}
+
+	retval = ratt_table_push(&l_partable, &new_parent);
 	if (retval != OK) {
 		warning("failed to register module parent `%s'", parname);
 		debug("ratt_table_push() failed");
 		return FAIL;
 	}
 
-	debug("registered module parent `%s'", parname);
+	debug("module parent `%s' added", parname);
+
+	return OK;
+}
+
+int module_parent_unregister(rattmod_entry_t const *entry)
+{
+	RATTLOG_TRACE();
+	int retval;
+
+	if (!entry) {
+		debug("NULL module entry given");
+		return FAIL;
+	}
+
+	retval = module_parent_detach(entry->name);
+	if (retval != OK) {
+		debug("module_parent_detach() failed");
+		return FAIL;
+	}
+
+	return OK;
+}
+
+int module_parent_register(rattmod_entry_t const *entry)
+{
+	RATTLOG_TRACE();
+	int retval;
+
+	if (!entry) {
+		debug("NULL module entry given");
+		return FAIL;
+	}
+
+	retval = module_parent_attach(entry->name, entry->callbacks);
+	if (retval != OK) {
+		debug("module_parent_attach() failed");
+		return FAIL;
+	}
+
+	return OK;
+}
+
+int module_unregister(rattmod_entry_t const *entry)
+{
+	RATTLOG_TRACE();
+	rattmod_entry_t *module = NULL;
+	int retval;
+
+	if (!entry) {
+		debug("NULL module entry given");
+		return FAIL;
+	}
+
+	retval = ratt_table_search(&l_modtable, (void **) &module,
+	    &compare_module_name, entry->name);
+	if (retval != OK) {
+		debug("ratt_table_search() failed");
+		return FAIL;
+	}
+
+	ratt_table_del_current(&l_modtable);
+
+	return OK;
+
+}
+
+int module_register(rattmod_entry_t const *entry)
+{
+	RATTLOG_TRACE();
+	rattmod_entry_t *module = NULL;
+	int retval;
+
+	if (!entry) {
+		debug("NULL module entry given");
+		return FAIL;
+	}
+
+	retval = ratt_table_search(&l_modtable, (void **) &module,
+	    &compare_module_name, entry->name);
+	if (retval == OK) {
+		debug("module `%s' exists in table", entry->name);
+		return FAIL;
+	}
+
+	retval = ratt_table_push(&l_modtable, entry);
+	if (retval != OK) {
+		warning("failed to register module `%s'", entry->name);
+		debug("ratt_table_push() failed");
+		return FAIL;
+	}
 
 	return OK;
 }
@@ -354,6 +421,76 @@ int module_init(void)
 		conf_release(l_conftable);
 		return FAIL;
 	}
+
+	return OK;
+}
+
+/**
+ * \fn rattmod_unregister(rattmod_entry_t const *entry)
+ * \brief unregister a module
+ *
+ * Usage of rattmod_unregister() is necessary for a module to
+ * vanish from the RATTLE module registry.
+ *
+ * \param entry		A pointer to the module entry
+ */
+int rattmod_unregister(rattmod_entry_t const *entry)
+{
+	RATTLOG_TRACE();
+	int retval;
+
+	if (entry->flags & RATTMODFLPAR) { /* a module parent */
+		retval = module_parent_unregister(entry);
+		if (retval != OK) {
+			debug("module_parent_unregister() failed");
+			return FAIL;
+		}
+
+		return OK;
+	}
+
+	retval = module_unregister(entry);
+	if (retval != OK) {
+		debug("module_unregister() failed");
+		return FAIL;
+	}
+
+	notice("unloaded module `%s'", entry->name);
+
+	return OK;
+}
+
+/**
+ * \fn rattmod_register(rattmod_entry_t const *entry)
+ * \brief register a module
+ *
+ * Usage of rattmod_register() is necessary for a module to
+ * introduce itself to the RATTLE module registry.
+ *
+ * \param entry		A pointer to the module entry
+ */
+int rattmod_register(rattmod_entry_t const *entry)
+{
+	RATTLOG_TRACE();
+	int retval;
+
+	if (entry->flags & RATTMODFLPAR) { /* a module parent */
+		retval = module_parent_register(entry);
+		if (retval != OK) {
+			debug("module_parent_register() failed");
+			return FAIL;
+		}
+
+		return OK;
+	}
+
+	retval = module_register(entry);
+	if (retval != OK) {
+		debug("module_register() failed");
+		return FAIL;
+	}
+
+	notice("loaded module `%s'", entry->name);
 
 	return OK;
 }

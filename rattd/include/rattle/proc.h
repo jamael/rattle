@@ -15,11 +15,11 @@ typedef struct {
 	int (*on_start)();
 	int (*on_stop)();
 	void (*on_interrupt)(int, siginfo_t const *, void *);
-	void (*on_unregister)(void (*)(void *));
-	int (*on_register)(void (*)(void *), uint32_t, void *);
+	void (*on_unregister)(int (*)(void *));
+	int (*on_register)(int (*)(void *), uint32_t, void *);
 } rattproc_callback_t;
 
-void rattproc_unregister(void (*)(void *));
-int rattproc_register(void (*)(void *), uint32_t, void *);
+void rattproc_unregister(int (*)(void *));
+int rattproc_register(int (*)(void *), uint32_t, void *);
 
 #endif /* RATTLE_PROC_H */

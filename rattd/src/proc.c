@@ -187,13 +187,13 @@ int proc_init(void)
 	return OK;
 }
 
-void rattproc_unregister(void (*process)(void *))
+void rattproc_unregister(int (*process)(void *))
 {
 	RATTLOG_TRACE();
 	on_unregister(process);
 }
 
-int rattproc_register(void (*process)(void *), uint32_t flags, void *udata)
+int rattproc_register(int (*process)(void *), uint32_t flags, void *udata)
 {
 	RATTLOG_TRACE();
 	return on_register(process, flags, udata);

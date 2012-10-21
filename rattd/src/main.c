@@ -25,6 +25,7 @@
  * SUCH DAMAGE.
  */
 
+#include <config.h>
 
 #include <stddef.h>
 #include <stdio.h>
@@ -40,7 +41,9 @@
 #include "dtor.h"
 #include "log.h"
 #include "module.h"
+#include "proc.h"
 #include "rattd.h"
+#include "signal.h"
 
 #ifndef RATTD_VERSION
 #define RATTD_VERSION VERSION	/* from configure.ac */
@@ -108,6 +111,8 @@ static void fini(void)
 
 	/* callback registered destructor */
 	dtor_callback();
+	signal_fini(NULL);
+	debug("terminated");
 }
 
 int main(int argc, char * const argv[])
@@ -122,9 +127,16 @@ int main(int argc, char * const argv[])
 		exit(1);
 	}
 
+	/* handle signal */
+	if (signal_init() != OK) {
+		debug("signal_init() failed");
+		exit(1);
+	}
+
 	/* initialize global destructor register */
 	if (dtor_init() != OK) {
 		debug("dtor_init() failed");
+		signal_fini(NULL);
 		exit(1);
 	}
 
@@ -133,11 +145,13 @@ int main(int argc, char * const argv[])
 	if (retval != 0) {
 		error("cannot register main destructor");
 		debug("atexit() returns %i", retval);
+		dtor_fini(NULL);
+		signal_fini(NULL);
 		exit(1);
 	}
 
 	/* From now on, finish functions (_fini)
-	   must register with dtor_register(). */ 
+	   must register with dtor_register(). */
 
 	/* load configuration file */
 	if (conf_init() != OK || load_config() != OK) {
@@ -157,6 +171,12 @@ int main(int argc, char * const argv[])
 		exit(1);
 	}
 
+	/* set processor */
+	if (proc_init() != OK) {
+		debug("proc_init() failed");
+		exit(1);
+	}
+
 	if (rattd_init() != OK) {
 		debug("rattd_init() failed");
 		exit(1);
@@ -166,6 +186,7 @@ int main(int argc, char * const argv[])
 	conf_close();
 
 	/* processor */
+	proc_start();
 
 	return 0;
 }

@@ -190,6 +190,11 @@ static int attach_module(char const *parname, char const *modname)
 		return FAIL;
 	}
 
+	if (!(module->callbacks)) {
+		debug("module `%s' provides no callback", module->name);
+		return FAIL;
+	}
+
 	debug("attaching module `%s' to `%s'", modname, parname);
 	parent->attach(module);
 	module->parent_name = parent->name;
@@ -445,14 +450,12 @@ int rattmod_unregister(rattmod_entry_t const *entry)
 			debug("module_parent_unregister() failed");
 			return FAIL;
 		}
-
-		return OK;
-	}
-
-	retval = module_unregister(entry);
-	if (retval != OK) {
-		debug("module_unregister() failed");
-		return FAIL;
+	} else { /* a module */
+		retval = module_unregister(entry);
+		if (retval != OK) {
+			debug("module_unregister() failed");
+			return FAIL;
+		}
 	}
 
 	notice("unloaded module `%s'", entry->name);
@@ -480,14 +483,12 @@ int rattmod_register(rattmod_entry_t const *entry)
 			debug("module_parent_register() failed");
 			return FAIL;
 		}
-
-		return OK;
-	}
-
-	retval = module_register(entry);
-	if (retval != OK) {
-		debug("module_register() failed");
-		return FAIL;
+	} else { /* a module */
+		retval = module_register(entry);
+		if (retval != OK) {
+			debug("module_register() failed");
+			return FAIL;
+		}
 	}
 
 	notice("loaded module `%s'", entry->name);

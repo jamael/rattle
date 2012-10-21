@@ -109,7 +109,7 @@ static void load_modules_callbacks(void)
 }
 
 #define TIMESTRSIZ 21	/* %d %b %Y %T + \0 */
-static void log_msg(int level, char const *msg)
+static void std_print_msg(int level, char const *msg)
 {
 	FILE *out = NULL;
 	char timestr[TIMESTRSIZ] = { '\0' };
@@ -129,21 +129,16 @@ static void log_msg(int level, char const *msg)
 	fprintf(out, "%s", msg);
 }
 
-void rattlog_msg(int level, const char *fmt, ...)
+static void on_msg(int level, char const *msg)
 {
 	rattlog_callback_t *callback = NULL;
-	va_list ap;
-	char msg[RATTLOG_MSGSIZMAX] = { '\0' };
 
-	if (level > l_verbose) /* honor verbose level */
+	/* honor the verbose level setting */
+	if (level > l_verbose)
 		return;
 
-	va_start(ap, fmt);
-	vsnprintf(msg, RATTLOG_MSGSIZMAX, fmt, ap);
-	va_end(ap);
-
 	/* builtin standard logger */
-	log_msg(level, msg);
+	std_print_msg(level, msg);
 
 	/* registered logger module */
 	RATT_TABLE_FOREACH(&l_calltable, callback)
@@ -210,4 +205,27 @@ int log_init(void)
 	}
 
 	return OK;
+}
+
+/**
+ * \fn void rattlog_msg(int level, const char *fmt, ...)
+ * \brief log a message
+ *
+ * Send a message to attached loggers
+ *
+ * \param level		the verbose level this message belongs to
+ * \param fmt		printf-style format string
+ * \param ...		additional params to match format string
+ *
+ */
+void rattlog_msg(int level, const char *fmt, ...)
+{
+	va_list ap;
+	char msg[RATTLOG_MSGSIZMAX] = { '\0' };
+
+	va_start(ap, fmt);
+	vsnprintf(msg, RATTLOG_MSGSIZMAX, fmt, ap);
+	va_end(ap);
+
+	on_msg(level, msg);
 }

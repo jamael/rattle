@@ -3,4 +3,4 @@
 #
 
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = include src modules
+SUBDIRS = include/rattle src modules

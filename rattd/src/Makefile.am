@@ -2,6 +2,8 @@
 # src/Makefile.am
 #
 
+ACLOCAL_AMFLAGS = -I m4
+
 #
 # Automake defines DEFAULT_INCLUDES to look into -I. for header files.
 # However, that prevents picking up the desired system header if a local

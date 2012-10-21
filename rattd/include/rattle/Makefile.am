@@ -2,5 +2,7 @@
 # include/rattle/Makefile.am
 #
 
-librattle_includedir = $(includedir)/rattle
-librattle_include_HEADERS = conf.h def.h log.h module.h
+ACLOCAL_AMFLAGS = -I m4
+
+rattle_includedir = $(includedir)/rattle
+rattle_include_HEADERS = conf.h def.h log.h module.h table.h

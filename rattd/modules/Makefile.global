@@ -3,7 +3,7 @@
 #
 
 ACLOCAL_AMFLAGS = -I m4
-DEFAULT_INCLUDES = -I../include
+DEFAULT_INCLUDES = -I.. -I../include
 AM_LDFLAGS = -module -avoid-version
 
 pkglib_LTLIBRARIES =

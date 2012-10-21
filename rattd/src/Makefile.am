@@ -11,7 +11,7 @@ ACLOCAL_AMFLAGS = -I m4
 #
 # #include <foo.h> and #include "foo.h" exists for that specific purpose.
 #
-DEFAULT_INCLUDES = -I../include
+DEFAULT_INCLUDES = -I.. -I../include
 
 sbin_PROGRAMS = rattd
 rattd_SOURCES = rattd.c conf.c main.c dtor.c log.c module.c table.c proc.c \

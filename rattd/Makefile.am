@@ -3,4 +3,13 @@
 #
 
 ACLOCAL_AMFLAGS = -I m4
-SUBDIRS = include/rattle src modules
+
+SUBDIRS = src modules
+
+rattle_includedir = $(includedir)/rattle
+rattle_include_HEADERS = \
+	include/rattle/conf.h \
+	include/rattle/def.h \
+	include/rattle/log.h \
+	include/rattle/module.h \
+	include/rattle/table.h

@@ -1,4 +1,4 @@
-/* include/config.h.in.  Generated from configure.ac by autoheader.  */
+/* config.h.in.  Generated from configure.ac by autoheader.  */
 
 /* Define to 1 if you want debugging code to be compiled in. */
 #undef DEBUG

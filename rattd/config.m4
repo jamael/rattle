@@ -2,12 +2,11 @@ AC_INIT([rattd], [0.1])
 
 
 AC_CONFIG_SRCDIR([LICENSE])
-AC_CONFIG_HEADERS([include/config.h])
+AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_AUX_DIR([build])
 AC_CONFIG_MACRO_DIR([m4])
 
 AC_CONFIG_FILES([Makefile
-		include/rattle/Makefile
 		modules/Makefile
 		src/Makefile])
 

@@ -73,10 +73,10 @@ static void on_unregister(int (*process)(void *))
 
 	retval = ratt_table_search(&l_proctable, (void **) &proc,
 	    &compare_process, process);
-	if (retval != OK)
+	if (retval != OK) {
 		debug("no matching process found");
-
-	ratt_table_del_current(&l_proctable);
+	} else
+		ratt_table_del_current(&l_proctable);
 }
 
 static int on_register(int (*process)(void *), uint32_t flags, void *udata)

@@ -1,7 +1,5 @@
 AC_INIT([rattd], [0.1])
 
-m4_include([m4/rattle.m4])
-AC_DEFUN([RATTLE_MODULE_SRCDIR], [$srcroot/modules/]translit($1,A-Z_,a-z/))
 
 AC_CONFIG_SRCDIR([LICENSE])
 AC_CONFIG_HEADERS([include/config.h])
@@ -14,6 +12,7 @@ AC_CONFIG_FILES([Makefile
 		src/Makefile])
 
 AM_INIT_AUTOMAKE([foreign subdir-objects])
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 # Checks for programs.
 AC_PROG_CC
@@ -44,6 +43,8 @@ AC_SUBST(libconfig_CFLAGS)
 AC_SUBST(libconfig_LIBS)
 
 # absolute path to SRCDIR
-srcroot=$(cd $srcdir; pwd)
-AM_CPPFLAGS="-I$srcroot/include $AM_CPPFLAGS"
-AC_SUBST(AM_CPPFLAGS)
+#srcroot=$(cd $srcdir; pwd)
+#AM_CPPFLAGS="-I$abs_top_srcdir/include $AM_CPPFLAGS"
+#AC_SUBST(AM_CPPFLAGS)
+
+m4_include([m4/rattle.m4])

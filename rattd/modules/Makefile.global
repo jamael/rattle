@@ -2,6 +2,7 @@
 # modules/Makefile.global
 #
 
+DEFAULT_INCLUDES = -I../include
 AM_LDFLAGS = -module -avoid-version
 
 pkglib_LTLIBRARIES =

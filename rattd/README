@@ -10,3 +10,28 @@ your system to get rattd compiled from source.
 
 	libconfig version 1.3 or newer;
 	pkg-config
+
+
+BUILDING FROM A RELEASE
+
+Use the configure script to generate the required Makefiles, then make.
+
+$ ./configure
+$ make
+
+To install, give an install rule to make. That is, as root;
+
+$ su -c `make install`
+
+or
+
+$ sudo make install
+
+
+BUILDING FROM TREE
+
+If you cannot find the configure script, you need to run autogen first.
+
+$ build/autogen
+
+Note that you need the GNU autotools to generate the script.

@@ -187,13 +187,8 @@ int log_init(void)
 	}
 
 	retval = rattmod_attach_from_config(RATTLOG, &l_conf_module);
-	if (retval != OK) {
-		debug("rattmod_attach_from_config() failed");
-		module_parent_detach(RATTLOG);
-		ratt_table_destroy(&l_calltable);
-		conf_release(l_conftable);
-		return FAIL;
-	}
+	if (retval != OK)
+		debug("no module attached to logger");
 
 	retval = dtor_register(log_fini, NULL);
 	if (retval != OK) {

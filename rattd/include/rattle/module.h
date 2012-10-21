@@ -31,24 +31,25 @@ typedef struct {
  *
  * \param parname	parent name to attach modules to
  * \param modules	list of modules name in a config setting
+ * \return OK if at least one module attached to parent, FAIL otherwise.
  */
 static inline int
 rattmod_attach_from_config(char const *parname, rattconf_list_t *modules)
 {
 	RATTLOG_TRACE();
 	char **name = NULL;
-	int retval;
+	int retval, attached = 0;
 
 	RATTCONF_LIST_FOREACH(modules, name)
 	{
 		retval = module_attach(parname, *name);
 		if (retval != OK) {
 			debug("module_attach() failed");
-			return FAIL;
-		}
+		} else
+			attached++;
 	}
 
-	return OK;
+	return (attached) ? OK : FAIL;
 }
 
 extern int rattmod_register(rattmod_entry_t const *);

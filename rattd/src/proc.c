@@ -102,7 +102,7 @@ static void on_interrupt(int signum, siginfo_t const *siginfo, void *udata)
 		debug("on_interrupt() undefined");
 }
 
-static void on_unregister(void (*process)(void *))
+static void on_unregister(int (*process)(void *))
 {
 	if (l_callbacks && l_callbacks->on_unregister) {
 		l_callbacks->on_unregister(process);
@@ -110,7 +110,7 @@ static void on_unregister(void (*process)(void *))
 		debug("on_unregister() undefined");
 }
 
-static int on_register(void (*process)(void *), uint32_t flags, void *udata)
+static int on_register(int (*process)(void *), uint32_t flags, void *udata)
 {
 	if (l_callbacks && l_callbacks->on_register)
 		return l_callbacks->on_register(process, flags, udata);
@@ -177,7 +177,7 @@ int proc_init(void)
 
 	retval = dtor_register(proc_fini, NULL);
 	if (retval != OK) {
-		debug("proc_register() failed");
+		debug("dtor_register() failed");
 		module_parent_detach(RATTPROC);
 		signal_unregister(&on_interrupt);
 		conf_release(l_conftable);

@@ -1,10 +1,12 @@
 #ifndef RATTLE_TABLE_H
 #define RATTLE_TABLE_H
 
+#include <stdint.h>
 #include <rattle/def.h>
 
 #define RATTTABFLXIS	0x1	/* table exists */
-#define RATTTABFLNRL	0x2	/* forbid realloc */
+#define RATTTABFLNRA	0x2	/* forbid realloc */
+#define RATTTABFLNRU	0x4	/* forbid fragment reuse */
 
 /* minimum table size; cannot be lower than 1 */
 #define RATTTAB_MINSIZ 1
@@ -15,7 +17,9 @@ typedef struct {
 	void *head, *tail;	/* head and tail of table */
 	size_t size, pos, last;	/* size and position of table */
 	size_t chunk_size;	/* size of a chunk */
-	size_t chunk_count;	/* number of chunks pushed */
+	size_t chunk_count;	/* number of chunks */
+	size_t chunk_frag;	/* fragmented chunk number */
+	uint8_t *frag_mask;	/* fragment mask */
 	int flags;		/* table flags */
 } ratt_table_t;
 
@@ -55,6 +59,11 @@ static inline int ratt_table_istail(ratt_table_t *table, void *chunk)
 	return (ratt_table_exists(table) && (chunk == table->tail));
 }
 
+static inline int ratt_table_isfrag(ratt_table_t *table)
+{
+	return (table->chunk_frag);
+}
+
 static inline void *ratt_table_get_first(ratt_table_t *table)
 {
 	return (ratt_table_isempty(table)) ? NULL : table->head;
@@ -89,9 +98,12 @@ static inline void *ratt_table_get_current(ratt_table_t *table)
 extern int ratt_table_create(ratt_table_t *, size_t, size_t, int);
 extern int ratt_table_destroy(ratt_table_t *);
 extern int ratt_table_push(ratt_table_t *, void const *);
+extern int ratt_table_insert(ratt_table_t *, void const *);
 extern int ratt_table_search(ratt_table_t *, void **,
     int (*)(void const *, void const *), void const *);
 extern int ratt_table_get_tail_next(ratt_table_t *, void **);
+extern int ratt_table_get_frag_first(ratt_table_t *, void **);
 extern int ratt_table_del_current(ratt_table_t *);
+extern int ratt_table_set_pos_frag_first(ratt_table_t *);
 
 #endif /* RATTLE_TABLE_H */

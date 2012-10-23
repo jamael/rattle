@@ -59,12 +59,24 @@
 		}					\
 	} while (0)
 
+static inline int is_frag(uint8_t const *slot, size_t pos)
+{
+	shift_mask_slot(slot, pos);
+	return (*slot & shift_mask(pos));
+}
+
 static inline int frag_mask_set(uint8_t *slot, size_t pos, size_t *cnt)
 {
-	RATTLOG_TRACE();
+	uint8_t bitmask = shift_mask(pos);
 
 	shift_mask_slot(slot, pos);
-	*slot |= shift_mask(pos);
+
+	if (*slot & bitmask) {
+		debug("bitmask 0x%x already set in mask slot", bitmask);
+		return FAIL;
+	}
+
+	*slot |= bitmask;
 	(*cnt)++;
 
 	return OK;
@@ -72,10 +84,16 @@ static inline int frag_mask_set(uint8_t *slot, size_t pos, size_t *cnt)
 
 static inline int frag_mask_unset(uint8_t *slot, size_t pos, size_t *cnt)
 {
-	RATTLOG_TRACE();
+	uint8_t bitmask = shift_mask(pos);
 
 	shift_mask_slot(slot, pos);
-	*slot &= ~shift_mask(pos);
+
+	if (!(*slot & bitmask)) {
+		debug("bitmask 0x%x absent from mask slot", bitmask);
+		return FAIL;
+	}
+
+	*slot &= ~bitmask;
 	(*cnt)--;
 
 	return OK;
@@ -109,21 +127,19 @@ static int realloc_and_move(ratt_table_t *table)
 		return FAIL;
 	}
 
-	if (!(table->flags & RATTTABFLNRU)) {	/* reuse ok */
-		frag_mask = realloc(table->frag_mask, frag_mask_size(newsiz));
-		if (!frag_mask) {
-			error("memory allocation failed");
-			debug("realloc() failed");
-			return FAIL;
-		}
-
-		debug("reallocated frag_mask at %p", frag_mask);
-		table->frag_mask = frag_mask;
-		shift_mask_slot(frag_mask, table->last);
-		frag_mask++;	/* entering unintialized memory */
-		memset(frag_mask, 0,
-		    frag_mask_size(newsiz) - frag_mask_size(table->size));
+	frag_mask = realloc(table->frag_mask, frag_mask_size(newsiz));
+	if (!frag_mask) {
+		error("memory allocation failed");
+		debug("realloc() failed");
+		return FAIL;
 	}
+
+	debug("reallocated frag_mask at %p", frag_mask);
+	table->frag_mask = frag_mask;
+	shift_mask_slot(frag_mask, table->last);
+	frag_mask++;	/* entering uninitialized memory */
+	memset(frag_mask, 0,
+	    frag_mask_size(newsiz) - frag_mask_size(table->size));
 
 	if (table->head != head) {	/* realloc moved it, recompute */
 		debug("head is now at %p, was %p", head, table->head);
@@ -174,12 +190,14 @@ int ratt_table_set_pos_frag_first(ratt_table_t *table)
 
 	shift_mask_slot(slot_last, table->last);
 	for (i = 0, slot = table->frag_mask; slot <= slot_last; slot++, i++) {
-		if (*slot)
+		if (*slot) {
 			pos = fsbset(*slot) >> 1;
+			debug("fsbset() gives %u in slot_mask(%u)", pos, i);
+			break;
+		}
 	}
 
 	table->pos = pos + i * 8;
-	debug("found fragment at pos `%u'", table->pos);
 
 	return OK;
 }
@@ -193,6 +211,9 @@ int ratt_table_del_current(ratt_table_t *table)
 	if (!chunk) {
 		debug("ratt_table_get_current() failed");
 		return FAIL;
+	} else if (is_frag(table->frag_mask, table->pos)) {
+		debug("chunk at %p already freed", chunk);
+		return FAIL;
 	}
 
 	debug("deleting chunk at %p", chunk);
@@ -205,10 +226,9 @@ int ratt_table_del_current(ratt_table_t *table)
 		table->tail = chunk - table->chunk_size;
 		table->pos = --table->last;
 		debug("moved tail back to %p", table->tail);
-	} else if (!(table->flags & RATTTABFLNRU)) { /* reuse ok */
+	} else	/* handle fragmentation */
 		frag_mask_set(table->frag_mask,
 		    table->pos, &(table->chunk_frag));
-	}
 
 	return OK;
 }
@@ -364,14 +384,13 @@ int ratt_table_create(ratt_table_t *table, size_t cnt, size_t size, int flags)
 		return FAIL;
 	}
 
-	if (!(flags & RATTTABFLNRU)) {	/* reuse ok */
-		table->frag_mask = calloc(1, frag_mask_size(cnt));
-		if (!table->frag_mask) {
-			error("memory allocation failed");
-			debug("calloc() failed");
-			free(table->head);
-			return FAIL;
-		}
+	/* always have frag_mask, even if no reuse flag given */
+	table->frag_mask = calloc(1, frag_mask_size(cnt));
+	if (!table->frag_mask) {
+		error("memory allocation failed");
+		debug("calloc() failed");
+		free(table->head);
+		return FAIL;
 	}
 
 	table->tail = table->head;

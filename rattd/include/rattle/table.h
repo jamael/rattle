@@ -66,12 +66,33 @@ static inline int ratt_table_isfrag(ratt_table_t *table)
 
 static inline void *ratt_table_get_first(ratt_table_t *table)
 {
-	return (ratt_table_isempty(table)) ? NULL : table->head;
+	if (!ratt_table_isempty(table)) {
+		table->pos = 0;
+		return table->head;
+	}
+
+	return NULL;
 }
 
 static inline void *ratt_table_get_last(ratt_table_t *table)
 {
-	return (ratt_table_isempty(table)) ? NULL : table->tail;
+	if (!ratt_table_isempty(table)) {
+		table->pos = table->last;
+		return table->tail;
+	}
+
+	return NULL;
+}
+
+static inline void *ratt_table_get_next(ratt_table_t *table)
+{
+	if (!ratt_table_isempty(table)
+	    && (table->pos + 1) <= table->last) {
+		table->pos++;
+		return table->head + (table->pos * table->chunk_size);
+	}
+
+	return NULL;
 }
 
 static inline void *ratt_table_get_current(ratt_table_t *table)
@@ -79,8 +100,9 @@ static inline void *ratt_table_get_current(ratt_table_t *table)
 	if (!ratt_table_isempty(table)
 	    && table->pos <= table->last) {
 		return table->head + (table->pos * table->chunk_size);
-	} else
-		return NULL;
+	}
+
+	return NULL;
 }
 
 #define RATT_TABLE_FOREACH(tab, chunk) \

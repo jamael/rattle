@@ -52,6 +52,10 @@
  * Note: fsbset() uses ffs() to take advantages of hardware support
  *       for find first bit set operation *but* ffs() is one-based.
  *       Thus, fsbset() substracts one so that results are zero-based.
+ *
+ *       Care must be taken to verify that bits are set before using
+ *       fsbset() as ffs() uses return value of 0 to indicate that
+ *       no bit is set.
  */
 #define frag_mask_size(x) ((1 + ((x) / 8)) * sizeof(uint8_t))
 #define fsbset(x) (ffs((x)) - 1)

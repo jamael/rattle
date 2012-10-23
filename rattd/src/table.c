@@ -44,18 +44,22 @@
  * A frag_mask bit toggled on means there is fragmentation at
  * the corresponding table->pos which is zero-based.
  *
- * frag_mask_size macro gives the size of a (x) flags array.
- * fsbset() macro finds the first significant bit set in the slot.
- * shift_mask() macro computes the bit flags position in the slot.
- * shift_mask_slot() macro computes the slot position in the array.
+ * frag_mask_size macro gives the size of a (x) flags array
+ * fsbset() macro finds the first significant bit set in the slot
+ * shift_mask() macro computes the bit flags position in the slot
+ * shift_mask_slot() macro computes the slot position in the array
+ *
+ * Note: fsbset() uses ffs() to take advantages of hardware support
+ *       for find first bit set operation *but* ffs() is one-based.
+ *       Thus, fsbset() substracts one so that results are zero-based.
  */
 #define frag_mask_size(x) ((1 + ((x) / 8)) * sizeof(uint8_t))
-#define fsbset(x) ((x) & (~((x)) + 1))
+#define fsbset(x) (ffs((x)) - 1)
 #define shift_mask(pos) (1 << ((pos) & 7))
 #define shift_mask_slot(head, pos)			\
 	do {						\
 		if ((head)) {				\
-			(head) += ((pos) + 1) / 8;	\
+			(head) += (pos) / 8;		\
 		}					\
 	} while (0)
 
@@ -70,7 +74,6 @@ static inline int frag_mask_set(uint8_t *slot, size_t pos, size_t *cnt)
 	uint8_t bitmask = shift_mask(pos);
 
 	shift_mask_slot(slot, pos);
-
 	if (*slot & bitmask) {
 		debug("bitmask 0x%x already set in mask slot", bitmask);
 		return FAIL;
@@ -87,7 +90,6 @@ static inline int frag_mask_unset(uint8_t *slot, size_t pos, size_t *cnt)
 	uint8_t bitmask = shift_mask(pos);
 
 	shift_mask_slot(slot, pos);
-
 	if (!(*slot & bitmask)) {
 		debug("bitmask 0x%x absent from mask slot", bitmask);
 		return FAIL;
@@ -191,7 +193,7 @@ int ratt_table_set_pos_frag_first(ratt_table_t *table)
 	shift_mask_slot(slot_last, table->last);
 	for (i = 0, slot = table->frag_mask; slot <= slot_last; slot++, i++) {
 		if (*slot) {
-			pos = fsbset(*slot) >> 1;
+			pos = fsbset(*slot);
 			debug("fsbset() gives %u in slot_mask(%u)", pos, i);
 			break;
 		}
@@ -296,7 +298,13 @@ int ratt_table_get_frag_first(ratt_table_t *table, void **next)
 		return FAIL;
 	}
 
-	frag_mask_unset(table->frag_mask, table->pos, &(table->chunk_frag));
+	retval = frag_mask_unset(table->frag_mask,
+	    table->pos, &(table->chunk_frag));
+	if (retval != OK) {
+		debug("frag_mask_unset() failed");
+		return FAIL;
+	}
+
 	table->chunk_count++;
 
 	return OK;

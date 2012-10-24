@@ -51,7 +51,11 @@
 static RATT_TABLE_INIT(l_calltable);	/* callback table */
 
 /* logger verbosity level */
-static int l_verbose = RATTLOGMAX;
+#ifdef DEBUG
+static int l_verbose = RATTLOGDBG;
+#else
+static int l_verbose = RATTLOGNOT;
+#endif
 
 #ifndef RATTD_LOG_MODULE
 #define RATTD_LOG_MODULE "syslog"
@@ -163,8 +167,11 @@ int log_init(void)
 
 	level = rattlog_name_to_level(l_conf_verbose);
 	if (level < RATTLOGMAX) {
-		notice("switching to verbose level `%s'", l_conf_verbose);
-		l_verbose = level;
+		if (level != l_verbose) {
+			notice("switching to verbose level `%s'",
+			    l_conf_verbose);
+			l_verbose = level;
+		}
 	} else
 		warning("unknown verbose level `%s'", l_conf_verbose);
 

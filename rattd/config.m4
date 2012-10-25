@@ -42,11 +42,21 @@ PKG_CHECK_MODULES([libconfig], [libconfig >= 1.3],,
 AC_SUBST(libconfig_CFLAGS)
 AC_SUBST(libconfig_LIBS)
 
-AC_DEFINE([DEBUG], [1],
-  [Define to 1 if you want debugging code to be compiled in.])
+# --enable-debug
+AC_ARG_ENABLE([debug],
+	[AS_HELP_STRING([--enable-debug],
+		[enable debugging prints and trace])])
+AS_IF([test "x$enable_debug" == "xyes"],
+	[AC_DEFINE([DEBUG], [1],
+		[Define if you want debug code])])
 
-AC_DEFINE([WANT_TESTS], [1],
-  [Define to 1 if you want the tests code to be compiled in.])
-AM_CONDITIONAL([WANT_TESTS], [test 1])
+# --enable-test-mode
+AC_ARG_ENABLE([test-mode],
+	[AS_HELP_STRING([--enable-test-mode],
+		[enable benchmark and various tests])])
+AS_IF([test "x$enable_test_mode" == "xyes"],
+	[AC_DEFINE([WANT_TESTS], [1],
+		[Define if you want test mode])])
+AM_CONDITIONAL([WANT_TESTS], [test "x$enable_test_mode" != "xno"])
 
 m4_include([m4/rattle.m4])

@@ -458,7 +458,7 @@ int rattmod_unregister(rattmod_entry_t const *entry)
 		}
 	}
 
-	notice("unloaded module `%s'", entry->name);
+	debug("unloaded module `%s'", entry->name);
 
 	return OK;
 }
@@ -491,7 +491,7 @@ int rattmod_register(rattmod_entry_t const *entry)
 		}
 	}
 
-	notice("loaded module `%s'", entry->name);
+	debug("loaded module `%s'", entry->name);
 
 	return OK;
 }

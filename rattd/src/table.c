@@ -250,7 +250,7 @@ int ratt_table_get_tail_next(ratt_table_t *table, void **tail)
 #endif
 	if (!ratt_table_isempty(table) && (table->last + 1) >= table->size) {
 		if (table->flags & RATTTABFLNRA) { /* forbid realloc */
-			warning("table is full with %i chunks",
+			debug("table is full with %i chunks",
 			    table->last + 1);
 			return FAIL;
 		}

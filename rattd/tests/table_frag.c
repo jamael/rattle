@@ -43,7 +43,8 @@
 typedef struct {
 	size_t delete;		/* number of deletions */
 	size_t insert;		/* number of insertions */
-	size_t pos;		/* last position */
+	size_t count;		/* last position */
+	size_t frags;		/* number of fragments left */
 } table_data_t;
 
 static table_data_t l_table_data = { 0 };
@@ -61,23 +62,22 @@ static void on_unregister(void *udata)
 
 static int on_expect(ratt_test_data_t *test)
 {
-	table_data_t *test_data = NULL;
+	table_data_t *data = NULL;
 	int retval;
 
 	retval = ratt_test_get_retval(test);
 	if (retval == FAIL) {	/* that is expected */
-		test_data = ratt_test_get_udata(test);
-		if (test_data->pos == TABLESIZ) {
-			/* table was full */
+		data = ratt_test_get_udata(test);
+		if (data->count == TABLESIZ && !data->frags) {
+			/* table was full, no frags left */
 			return OK;
 		}
 	}
 
-	debug("retval is %i, pos at %u", retval, test_data->pos);
-
 	/*
 	 * table should have filled up to the maximum it can hold
-	 * before failing.
+	 * before failing and no fragment should have been left
+	 * empty.
 	 */
 
 	return FAIL;
@@ -87,7 +87,7 @@ static int on_run(void *udata)
 {
 	ratt_table_t mytable;
 	size_t *chunk, insert = 0, delete = 0;
-	table_data_t *test_data = udata;
+	table_data_t *data = udata;
 	int retval, do_del = 0;
 
 	ratt_table_create(&mytable, TABLESIZ, sizeof(size_t), RATTTABFLNRA);
@@ -105,15 +105,19 @@ static int on_run(void *udata)
 			} else
 				delete++;
 		} else {
-			insert++;
 			debug("inserting %u", insert);
 			retval = ratt_table_insert(&mytable, &insert);
+			if (retval != OK) {
+				debug("ratt_table_insert() failed");
+			} else
+				insert++;
 		}
 	} while (retval == OK);
 
-	test_data->delete = delete;
-	test_data->insert = insert;
-	test_data->pos = ratt_table_pos_current(&mytable);
+	data->delete = delete;
+	data->insert = insert;
+	data->count = ratt_table_count(&mytable);
+	data->frags = ratt_table_frag_count(&mytable);
 
 	ratt_table_destroy(&mytable);
 
@@ -122,7 +126,12 @@ static int on_run(void *udata)
 
 static void on_summary(void const *udata)
 {
-	/* empty */
+	table_data_t const *data = udata;
+
+	notice("`%u' deletions; `%u' insertions",
+	    data->delete, data->insert);
+	notice("`%u' chunks in table; `%u' fragments left",
+	    data->count, data->frags);
 }
 
 static ratt_test_callback_t test_callbacks = {

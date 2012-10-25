@@ -15,9 +15,10 @@ DEFAULT_INCLUDES = -I.. -I../include
 
 sbin_PROGRAMS = rattd
 rattd_SOURCES = rattd.c conf.c main.c dtor.c log.c module.c table.c proc.c \
-                signal.c test.c
+                signal.c
 rattd_LDFLAGS = @libconfig_LIBS@ @LIBADD_DLOPEN@ -rdynamic
 
 if WANT_TESTS
+rattd_SOURCES += test.c
 rattd_LDFLAGS += -Wl,--whole-archive,../tests/libtests.a,--no-whole-archive
 endif

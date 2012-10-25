@@ -79,7 +79,9 @@ static unsigned int l_args = 0;
 /* program built-in configuration */
 static char const *l_cfg_builtin =
 	"logger: { verbose = \"" TEST_LOGLEVEL "\"; module = \"file\";"
-		"file: { debug = \"" TEST_LOGFILE_DEBUG "\"; }"
+		"file: { debug = \"" TEST_LOGFILE_DEBUG "\"; };"
+	"};"
+	"module: { search-path = \"/usr/local/lib/rattd/\";"
 	"};"
 	;
 
@@ -166,16 +168,36 @@ static void expect(void)
 			continue;
 		}
 
-		retval = entry->callbacks->on_expect(entry->test.udata);
+		retval = entry->callbacks->on_expect(&(entry->test));
 		if (retval != OK) {
 			notice("%s... fail", entry->desc);
-		} else
+			entry->test.expect = FAIL;
+		} else {
 			notice("%s... ok", entry->desc);
+			entry->test.expect = OK;
+		}
 	}	
 }
 
 static void summary(void)
 {
+	test_entry_t *entry = NULL;
+	int retval;
+
+	RATT_TABLE_FOREACH(&l_testtable, entry)
+	{
+		notice("%s (%s):", entry->desc, entry->name);
+		if (!(entry->callbacks->on_summary)) {
+			debug("on_summary() callback is NULL for `%s'",
+			    entry->name);
+			continue;
+		}
+
+		entry->callbacks->on_summary(entry->test.udata);
+		notice("-> %s", (entry->test.expect == OK) ?
+		    "ok" : "fail");
+		notice("");
+	}	
 }
 
 static void fini(void)
@@ -266,15 +288,24 @@ int test_main(int argc, char * const argv[])
 	}
 
 	/* register test entries */
+	notice("");
+	notice("--- LOAD ---");
+	notice("");
 	tests_ar_register(NULL, &attach_test_name);
 
 	/* run tests */
+	notice("");
+	notice("--- RUN ---");
+	notice("");
 	run();
 
 	/* see what they expected */
 	expect();
 
 	/* print summary */
+	notice("");
+	notice("--- SUMMARY ---");
+	notice("");
 	summary();
 
 	return OK;

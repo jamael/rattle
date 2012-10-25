@@ -99,7 +99,7 @@ void tests_ar_register(char const *category, void (*attach)(char const *))
 		all_of_them = 1;
 
 	/* get program's dlopen() handle */
-	l_program_handle = dlopen(NULL, RTLD_NOW|RTLD_DEEPBIND);
+	l_program_handle = dlopen(NULL, RTLD_LAZY);
 	if (!l_program_handle) {
 		debug("dlopen() failed");
 		return;

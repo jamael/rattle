@@ -9,9 +9,14 @@
 #define RATTTABFLNRU	0x4	/* forbid fragment reuse */
 
 /* minimum table size; cannot be lower than 1 */
-#define RATTTAB_MINSIZ 1
+#ifndef RATTTAB_MINSIZ
+#define RATTTAB_MINSIZ		1
+#endif
+
 /* maximum table size; cannot be higher than SIZE_MAX - 1 */
-#define RATTTAB_MAXSIZ SIZE_MAX - 1
+#ifndef RATTTAB_MAXSIZ
+#define RATTTAB_MAXSIZ		SIZE_MAX - 1
+#endif
 
 typedef struct {
 	void *head, *tail;	/* head and tail of table */
@@ -36,6 +41,16 @@ static inline size_t ratt_table_pos_current(ratt_table_t *table)
 static inline size_t ratt_table_size(ratt_table_t *table)
 {
 	return table->size;
+}
+
+static inline size_t ratt_table_count(ratt_table_t *table)
+{
+	return table->chunk_count;
+}
+
+static inline size_t ratt_table_frag_count(ratt_table_t *table)
+{
+	return table->chunk_frag;
 }
 
 static inline int ratt_table_exists(ratt_table_t *table)

@@ -210,7 +210,7 @@ static void summary(void)
 		entry->callbacks->on_summary(entry->test.udata);
 
 		if (entry->test.cpu_time_used >= 0) {
-			notice("cpu time: %.3f seconds", entry->test.cpu_time_used);
+			notice("cpu time: %.2f seconds", entry->test.cpu_time_used);
 		} else
 			notice("cpu time: unknown");
 

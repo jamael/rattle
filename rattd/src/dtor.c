@@ -1,5 +1,5 @@
 /*
- * RATTD destructor register
+ * RATTLE destructor register
  * Copyright (c) 2012, Jamael Seun
  * All rights reserved.
  * 

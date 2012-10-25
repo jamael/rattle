@@ -1,5 +1,5 @@
 /*
- * RATTD main entry
+ * RATTLE main entry
  * Copyright (c) 2012, Jamael Seun
  * All rights reserved.
  * 
@@ -81,12 +81,12 @@ static int parse_argv_opts(int argc, char * const argv[])
 				l_conffile[PATH_MAX-1] = '\0';
 			}
 			break;
-		case 'T':	/* tests mode */
+		case 'T':	/* test mode */
 #ifdef WANT_TESTS
 			l_args |= ARGS_TESTS;
 			break;
 #else
-			error("-T given but tests mode not compiled in.");
+			error("-T given but test mode not compiled in.");
 			return FAIL;
 #endif
 		}

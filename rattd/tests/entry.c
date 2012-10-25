@@ -40,7 +40,7 @@
 
 static char const *tests_ar_entry[] = {
 	/* category, test name, ..., \0 */
-	"table", "table_frag", '\0',
+	"table", "table_frag", "table_resize", '\0',
 	'\0'	/* end of array */
 };
 

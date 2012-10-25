@@ -46,6 +46,10 @@
 #include "rattd.h"
 #include "signal.h"
 
+#ifdef WANT_TEST
+extern int test_main(int, char * const *);
+#endif
+
 #ifndef RATTD_VERSION
 #define RATTD_VERSION VERSION
 #endif
@@ -54,25 +58,36 @@
 #define CONFFILEPATH "/etc/rattle/rattd.conf"
 #endif
 
+#define ARGS_TESTS	0x1
+
+/* program arguments */
+static unsigned int l_args = 0;
+
+/* configuration file path */
 static char l_conffile[PATH_MAX] = { '\0' };
 
 static int parse_argv_opts(int argc, char * const argv[])
 {
 	int c;
 
-	while ((c = getopt(argc, argv, "f:")) != -1)
+	while ((c = getopt(argc, argv, "f:T")) != -1)
 	{
 		switch (c)
 		{
-			case 'f':	/* explicit config file */
-				if (strlen(optarg) >= PATH_MAX) {
-					error("%s: path is too long", optarg);
-					return FAIL;
-				} else {
-					strcpy(l_conffile, optarg);
-					l_conffile[PATH_MAX-1] = '\0';
-				}
-				break;
+		case 'f':	/* explicit config file */
+			if (strlen(optarg) >= PATH_MAX) {
+				error("%s: path is too long", optarg);
+				return FAIL;
+			} else {
+				strcpy(l_conffile, optarg);
+				l_conffile[PATH_MAX-1] = '\0';
+			}
+			break;
+#ifdef WANT_TESTS
+		case 'T':	/* tests mode */
+			l_args |= ARGS_TESTS;
+			break;
+#endif
 		}
 	}
 
@@ -113,11 +128,12 @@ static void fini(void)
 	/* callback registered destructor */
 	dtor_callback();
 	signal_fini(NULL);
-	debug("terminated");
+	debug("finished");
 }
 
 int main(int argc, char * const argv[])
 {
+	RATTLOG_TRACE();
 	int retval;
 
 	show_startup_notice();	
@@ -127,6 +143,16 @@ int main(int argc, char * const argv[])
 		debug("parse_argv_opts() failed");
 		exit(1);
 	}
+
+#ifdef WANT_TESTS
+	if (l_args & ARGS_TESTS) {
+		/* entering tests mode */
+		if (test_main(argc, argv) != OK) {
+			exit(1);
+		}
+		exit(0);
+	}
+#endif
 
 	/* handle signal */
 	if (signal_init() != OK) {
@@ -166,15 +192,15 @@ int main(int argc, char * const argv[])
 		exit(1);
 	}
 
-	/* set logger */
-	if (log_init() != OK) {
-		debug("log_init() failed");
-		exit(1);
-	}
-
 	/* set processor */
 	if (proc_init() != OK) {
 		debug("proc_init() failed");
+		exit(1);
+	}
+
+	/* set logger */
+	if (log_init() != OK) {
+		debug("log_init() failed");
 		exit(1);
 	}
 

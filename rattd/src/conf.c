@@ -461,6 +461,33 @@ int conf_open(const char *file)
 	return OK;
 }
 
+int conf_open_builtin(const char *cfg)
+{
+	RATTLOG_TRACE();
+	config_error_t err = CONFIG_ERR_NONE;
+
+	if (config_read_string(&l_cfg, cfg) != CONFIG_TRUE) {
+		debug("config_read_string() failed");
+		err = config_error_type(&l_cfg);
+	}
+
+	switch (err) {
+	case CONFIG_ERR_FILE_IO:
+		debug("IO error on a string?");
+		return FAIL;
+	case CONFIG_ERR_PARSE:
+		error("%s at line %i", config_error_text(&l_cfg),
+		    config_error_line(&l_cfg));
+		return FAIL;
+	default:
+	case CONFIG_ERR_NONE:
+		/* success */
+		break;
+	}
+
+	return OK;
+}
+
 void conf_release_reverse(rattconf_decl_t const * const first,
                           rattconf_decl_t *current)
 {

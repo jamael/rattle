@@ -8,7 +8,8 @@ AC_CONFIG_MACRO_DIR([m4])
 
 AC_CONFIG_FILES([Makefile
 		modules/Makefile
-		src/Makefile])
+		src/Makefile
+		tests/Makefile])
 
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
@@ -43,5 +44,9 @@ AC_SUBST(libconfig_LIBS)
 
 AC_DEFINE([DEBUG], [1],
   [Define to 1 if you want debugging code to be compiled in.])
+
+AC_DEFINE([WANT_TESTS], [1],
+  [Define to 1 if you want the tests code to be compiled in.])
+AM_CONDITIONAL([WANT_TESTS], [test 1])
 
 m4_include([m4/rattle.m4])

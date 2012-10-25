@@ -9,6 +9,7 @@ typedef struct {
 	void *udata;		/* test user data */
 	int retval;		/* test return value */
 	int expect;		/* test expectation */
+	double cpu_time_used;	/* test execution time */
 } ratt_test_data_t;
 
 static inline void ratt_test_set_udata(ratt_test_data_t *test, void *udata)

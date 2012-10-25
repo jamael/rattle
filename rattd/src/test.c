@@ -28,9 +28,9 @@
 
 #include <config.h>
 
-#include <dlfcn.h>
 #include <libconfig.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <rattle/def.h>
@@ -61,13 +61,12 @@
 static RATT_TABLE_INIT(l_testtable);	/* test entry table */
 
 typedef struct {
+	char const * const name;	/* test module name */
+	char const * const desc;	/* test description */
+	char const * const version;	/* test version */
 
-	char const * const name;
-	char const * const desc;
-	char const * const version;
-
-	ratt_test_data_t test;
-	ratt_test_callback_t *callbacks;
+	ratt_test_data_t test;		/* test data */
+	ratt_test_callback_t *callbacks;	/* callbacks, indeed. */
 } test_entry_t;
 
 /* from ../tests/entry.c */
@@ -98,6 +97,7 @@ static int attach_module(rattmod_entry_t *modentry)
 		entry.callbacks->on_register(&entry.test);
 	} else {
 		debug("reject modentry without callbacks");
+		notice("failed loading `%s'", modentry->name);
 		return FAIL;
 	}
 	
@@ -105,10 +105,12 @@ static int attach_module(rattmod_entry_t *modentry)
 	if (retval != OK) {
 		debug("ratt_table_push() failed");
 		entry.callbacks->on_unregister(entry.test.udata);
+		notice("failed loading `%s'", modentry->name);
 		return FAIL;
 	}
 
-	notice("`%s' (%s) registered", modentry->desc, modentry->name);
+	notice("`%s' (%s %s)", modentry->desc,
+	    modentry->name, modentry->version);
 
 	return OK;
 }
@@ -140,18 +142,32 @@ static int parse_argv_opts(int argc, char * const argv[])
 static void run(void)
 {
 	test_entry_t *entry = NULL;
+	clock_t start, end;
 	int retval;
 
 	RATT_TABLE_FOREACH(&l_testtable, entry)
 	{
+		notice("%s...", entry->desc);
+
 		if (!(entry->callbacks->on_run)) {
 			debug("on_run() callback is NULL (%s)", entry->name);
 			entry->test.retval = FAIL;
 			continue;
 		}
 
+		if ((start = clock()) == (clock_t) -1)
+			entry->test.cpu_time_used = -1;
+
 		retval = entry->callbacks->on_run(entry->test.udata);
+
+		if ((end = clock()) == (clock_t) -1)
+			entry->test.cpu_time_used = -1;
+
 		entry->test.retval = retval;
+
+		if (!entry->test.cpu_time_used)
+			entry->test.cpu_time_used =
+			    ((double) (end - start)) / CLOCKS_PER_SEC;
 	}
 }
 
@@ -164,16 +180,14 @@ static void expect(void)
 	{
 		if (!(entry->callbacks->on_expect)) {
 			debug("on_expect() callback is NULL");
-			notice("%s... fail", entry->desc);
+			entry->test.expect = FAIL;
 			continue;
 		}
 
 		retval = entry->callbacks->on_expect(&(entry->test));
 		if (retval != OK) {
-			notice("%s... fail", entry->desc);
 			entry->test.expect = FAIL;
 		} else {
-			notice("%s... ok", entry->desc);
 			entry->test.expect = OK;
 		}
 	}	
@@ -194,7 +208,13 @@ static void summary(void)
 		}
 
 		entry->callbacks->on_summary(entry->test.udata);
-		notice("-> %s", (entry->test.expect == OK) ?
+
+		if (entry->test.cpu_time_used >= 0) {
+			notice("cpu time: %.3f seconds", entry->test.cpu_time_used);
+		} else
+			notice("cpu time: unknown");
+
+		notice("result: %s", (entry->test.expect == OK) ?
 		    "ok" : "fail");
 		notice("");
 	}	

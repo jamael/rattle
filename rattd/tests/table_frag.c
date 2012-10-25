@@ -38,7 +38,7 @@
 #define MODULE_DESC	"table fragmentation"
 #define MODULE_VERSION	"0.1"
 
-#define TABLESIZ	128
+#define TABLESIZ	100000
 
 typedef struct {
 	size_t delete;		/* number of deletions */

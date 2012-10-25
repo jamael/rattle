@@ -50,15 +50,13 @@
 extern int test_main(int, char * const *);
 #endif
 
-#ifndef RATTD_VERSION
-#define RATTD_VERSION VERSION
-#endif
-
 #ifndef CONFFILEPATH
 #define CONFFILEPATH "/etc/rattle/rattd.conf"
 #endif
 
+#ifdef WANT_TESTS
 #define ARGS_TESTS	0x1
+#endif
 
 /* program arguments */
 static unsigned int l_args = 0;
@@ -83,10 +81,13 @@ static int parse_argv_opts(int argc, char * const argv[])
 				l_conffile[PATH_MAX-1] = '\0';
 			}
 			break;
-#ifdef WANT_TESTS
 		case 'T':	/* tests mode */
+#ifdef WANT_TESTS
 			l_args |= ARGS_TESTS;
 			break;
+#else
+			error("-T given but tests mode not compiled in.");
+			return FAIL;
 #endif
 		}
 	}
@@ -116,9 +117,11 @@ static int load_config()
 static void show_startup_notice()
 {
 	fprintf(stdout,
-	    "The RATTLE daemon is waking up!\n"
-	    "rattd version %s\n"
-	    "\n", RATTD_VERSION);
+"RATTLE version %s\n\n"
+"THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND\n"
+"ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE\n"
+"IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE\n"
+"ARE DISCLAIMED.\n\n", VERSION);
 }
 
 static void fini(void)

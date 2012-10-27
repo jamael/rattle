@@ -9,6 +9,7 @@
 #define RATTLOG_VERSION_MINOR 1 /* minor version */
 
 #define RATTLOG_MSGSIZMAX 256	/* includes trailing NULL byte */
+#define RATTLOG_LVLSIZMAX 10	/* ditto. */
 
 enum RATTLOGLEVEL {
 	RATTLOGERR = 0,	/* error */

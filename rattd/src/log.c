@@ -106,11 +106,13 @@ static void load_modules_callbacks(void)
 	}
 }
 
-#define TIMESTRSIZ 21	/* %d %b %Y %T + \0 */
+#define LOG_TIMEFMT	"[%d %b %Y %T] "
+#define LOG_TIMESIZ	23
+#define LOG_PREFIX_SIZMAX LOG_TIMESIZ + RATTLOG_LVLSIZMAX
 static void std_print_msg(int level, char const *msg)
 {
 	FILE *out = NULL;
-	char timestr[TIMESTRSIZ] = { '\0' };
+	char prefix[LOG_PREFIX_SIZMAX] = { '\0' };
 	struct tm tmres;
 	time_t now;
 
@@ -118,13 +120,13 @@ static void std_print_msg(int level, char const *msg)
 
 	/* datetime prefix */
 	if (((now = time(NULL)) != (time_t) -1)
-	    && (localtime_r(&now, &tmres) != NULL)
-	    && (strftime(timestr, TIMESTRSIZ, "%d %b %Y %T", &tmres) > 0))
-		fprintf(out, "[%s] ", timestr);
+	    && (localtime_r(&now, &tmres) != NULL))
+		strftime(prefix, LOG_TIMESIZ, LOG_TIMEFMT, &tmres);
 	/* level name prefix */
-	fprintf(out, "%s: ", rattlog_level_to_name(level));
+	snprintf(prefix, RATTLOG_LVLSIZMAX, "%s",
+	    rattlog_level_to_name(level));
 	/* message */
-	fprintf(out, "%s", msg);
+	fprintf(out, "%s: %s", prefix, msg);
 }
 
 static void on_msg(int level, char const *msg)

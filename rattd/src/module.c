@@ -115,27 +115,27 @@ static int load_modules()
 
 		dir = opendir(*modpath);
 		if (!dir) {
-			warning("could not load modules from `%s': %s",
+			debug("could not load modules from `%s': %s",
 			    *modpath, strerror(errno));
 			continue;
 		}
 
-		while ((entry = readdir(dir)) != NULL
-		    && entry->d_type == DT_REG) {
+		while ((entry = readdir(dir)) != NULL) {
+			if (entry->d_type != DT_REG)
+				continue;
+
 			snprintf(sofile, PATH_MAX, "%s/%s",
 			    *modpath, entry->d_name);
 
 			handle = dlopen(sofile, RTLD_LAZY);
 			if (!handle) {
-				warning("`%s' is not a module", entry->d_name);
+				debug("`%s' is not a module", entry->d_name);
 				debug("dlopen() tells %s", dlerror());
 				continue;
 			}
 
 			retval = register_module_handle(handle);
 			if (retval != OK) {
-				warning("`%s' failed to register properly",
-				    entry->d_name);
 				debug("register_module_handle() failed");
 				dlclose(handle);
 				continue;
@@ -274,7 +274,6 @@ int module_parent_attach(char const *parname, int (*attach)(rattmod_entry_t *))
 
 	retval = ratt_table_push(&l_partable, &new_parent);
 	if (retval != OK) {
-		warning("failed to register module parent `%s'", parname);
 		debug("ratt_table_push() failed");
 		return FAIL;
 	}
@@ -366,7 +365,6 @@ int module_register(rattmod_entry_t const *entry)
 
 	retval = ratt_table_push(&l_modtable, entry);
 	if (retval != OK) {
-		warning("failed to register module `%s'", entry->name);
 		debug("ratt_table_push() failed");
 		return FAIL;
 	}

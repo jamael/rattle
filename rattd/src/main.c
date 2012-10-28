@@ -48,7 +48,7 @@
 #include "rattd.h"
 #include "signal.h"
 
-#ifdef WANT_TEST
+#ifdef WANT_TESTS
 extern int test_main(int, char * const *);
 #endif
 

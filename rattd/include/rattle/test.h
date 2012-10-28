@@ -12,19 +12,19 @@ typedef struct {
 	double cpu_time_used;	/* test execution time */
 } ratt_test_data_t;
 
-static inline void ratt_test_set_udata(ratt_test_data_t *test, void *udata)
+static inline void ratt_test_set_udata(ratt_test_data_t *data, void *udata)
 {
-	test->udata = udata;
+	data->udata = udata;
 }
 
-static inline void *ratt_test_get_udata(ratt_test_data_t *test)
+static inline void *ratt_test_get_udata(ratt_test_data_t *data)
 {
-	return test->udata;
+	return data->udata;
 }
 
-static inline int ratt_test_get_retval(ratt_test_data_t *test)
+static inline int ratt_test_get_retval(ratt_test_data_t *data)
 {
-	return test->retval;
+	return data->retval;
 }
 
 typedef struct {

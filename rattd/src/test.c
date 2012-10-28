@@ -58,18 +58,18 @@
 #endif
 
 /* test entry table initial size */
-#ifndef TEST_TABLESIZ
-#define TEST_TABLESIZ	4
+#ifndef TEST_TESTABSIZ
+#define TEST_TESTABSIZ	4
 #endif
-static RATT_TABLE_INIT(l_testtable);	/* test entry table */
+static RATT_TABLE_INIT(l_testab);	/* test entry table */
 
 typedef struct {
 	char const * const name;	/* test module name */
 	char const * const desc;	/* test description */
 	char const * const version;	/* test version */
 
-	ratt_test_data_t test;		/* test data */
-	ratt_test_callback_t *callbacks;	/* callbacks, indeed. */
+	ratt_test_data_t data;		/* test data */
+	ratt_test_hook_t *hook;		/* test hook */
 } test_entry_t;
 
 /* from ../tests/entry.c */
@@ -87,33 +87,35 @@ static char const *l_cfg_builtin =
 	"};"
 	;
 
-static int attach_module(rattmod_entry_t *modentry)
+static ratt_module_parent_t l_parent_info = {
+	RATT_TEST, RATT_TEST_VER_MAJOR, RATT_TEST_VER_MINOR,
+};
+
+static int attach_module(ratt_module_entry_t *entry)
 {
-	test_entry_t entry = {
-	    modentry->name, modentry->desc, modentry->version
+	ratt_test_hook_t *hook = NULL;
+	test_entry_t test = {
+	    entry->name, entry->desc, entry->version
 	};
-	ratt_test_callback_t *callbacks = NULL;
 	int retval;
 
-	if (modentry && modentry->callbacks) {
-		entry.callbacks = modentry->callbacks;
-		entry.callbacks->on_register(&entry.test);
-	} else {
-		debug("reject modentry without callbacks");
-		notice("failed loading `%s'", modentry->name);
+	test.hook = entry->attach(&l_parent_info);
+	if (!test.hook) {
+		debug("`%s' chose not to attach", entry->name);
 		return FAIL;
-	}
+	} else if (test.hook->on_register)
+		test.hook->on_register(&test.data);
 	
-	retval = ratt_table_push(&l_testtable, &entry);
+	retval = ratt_table_insert(&l_testab, &test);
 	if (retval != OK) {
 		debug("ratt_table_push() failed");
-		entry.callbacks->on_unregister(entry.test.udata);
-		notice("failed loading `%s'", modentry->name);
+		if (test.hook->on_unregister)
+			test.hook->on_unregister(test.data.udata);
+		notice("failed loading `%s'", entry->name);
 		return FAIL;
 	}
 
-	notice("`%s' (%s %s)", modentry->desc,
-	    modentry->name, modentry->version);
+	notice("%s (%s %s)", entry->desc, entry->name, entry->version);
 
 	return OK;
 }
@@ -144,80 +146,80 @@ static int parse_argv_opts(int argc, char * const argv[])
 
 static void run(void)
 {
-	test_entry_t *entry = NULL;
+	test_entry_t *test = NULL;
 	clock_t start, end;
 	int retval;
 
-	RATT_TABLE_FOREACH(&l_testtable, entry)
+	RATT_TABLE_FOREACH(&l_testab, test)
 	{
-		notice("%s...", entry->desc);
+		notice("%s...", test->desc);
 
-		if (!(entry->callbacks->on_run)) {
-			debug("on_run() callback is NULL (%s)", entry->name);
-			entry->test.retval = FAIL;
+		if (!(test->hook->on_run)) {
+			debug("on_run() callback is NULL (%s)", test->name);
+			test->data.retval = FAIL;
 			continue;
 		}
 
 		if ((start = clock()) == (clock_t) -1)
-			entry->test.cpu_time_used = -1;
+			test->data.cpu_time_used = -1;
 
-		retval = entry->callbacks->on_run(entry->test.udata);
+		retval = test->hook->on_run(test->data.udata);
 
 		if ((end = clock()) == (clock_t) -1)
-			entry->test.cpu_time_used = -1;
+			test->data.cpu_time_used = -1;
 
-		entry->test.retval = retval;
+		test->data.retval = retval;
 
-		if (!entry->test.cpu_time_used)
-			entry->test.cpu_time_used =
+		if (!test->data.cpu_time_used)
+			test->data.cpu_time_used =
 			    ((double) (end - start)) / CLOCKS_PER_SEC;
 	}
 }
 
 static void expect(void)
 {
-	test_entry_t *entry = NULL;
+	test_entry_t *test = NULL;
 	int retval;
 
-	RATT_TABLE_FOREACH(&l_testtable, entry)
+	RATT_TABLE_FOREACH(&l_testab, test)
 	{
-		if (!(entry->callbacks->on_expect)) {
+		if (!(test->hook->on_expect)) {
 			debug("on_expect() callback is NULL");
-			entry->test.expect = FAIL;
+			test->data.expect = FAIL;
 			continue;
 		}
 
-		retval = entry->callbacks->on_expect(&(entry->test));
+		retval = test->hook->on_expect(&(test->data));
 		if (retval != OK) {
-			entry->test.expect = FAIL;
+			test->data.expect = FAIL;
 		} else {
-			entry->test.expect = OK;
+			test->data.expect = OK;
 		}
 	}	
 }
 
 static void summary(void)
 {
-	test_entry_t *entry = NULL;
+	test_entry_t *test = NULL;
 	int retval;
 
-	RATT_TABLE_FOREACH(&l_testtable, entry)
+	RATT_TABLE_FOREACH(&l_testab, test)
 	{
-		notice("%s (%s):", entry->desc, entry->name);
-		if (!(entry->callbacks->on_summary)) {
+		notice("%s (%s):", test->desc, test->name);
+		if (!(test->hook->on_summary)) {
 			debug("on_summary() callback is NULL for `%s'",
-			    entry->name);
+			    test->name);
 			continue;
 		}
 
-		entry->callbacks->on_summary(entry->test.udata);
+		test->hook->on_summary(test->data.udata);
 
-		if (entry->test.cpu_time_used >= 0) {
-			notice("cpu time: %.2f seconds", entry->test.cpu_time_used);
+		if (test->data.cpu_time_used >= 0) {
+			notice("cpu time: %.2f seconds", test->data.cpu_time_used);
 		} else
 			notice("cpu time: unknown");
 
-		notice("result: %s", (entry->test.expect == OK) ?
+		notice("result: %s", (test->data.expect == OK) ?
 		    "ok" : "fail");
 		notice("");
 	}	
@@ -226,11 +228,9 @@ static void summary(void)
 static void fini(void)
 {
 	RATTLOG_TRACE();
-
-	/* callback registered destructor */
 	dtor_callback();
 	signal_fini(NULL);
-	ratt_table_destroy(&l_testtable);
+	ratt_table_destroy(&l_testab);
 	debug("finished");
 }
 
@@ -269,8 +269,8 @@ int test_main(int argc, char * const argv[])
 	}
 
 	/* initialize test entry table */
-	retval = ratt_table_create(&l_testtable,
-	    TEST_TABLESIZ, sizeof(test_entry_t), 0);
+	retval = ratt_table_create(&l_testab,
+	    TEST_TESTABSIZ, sizeof(test_entry_t), 0);
 	if (retval != OK) {
 		error("ratt_table_create() failed");
 		return FAIL;
@@ -285,6 +285,12 @@ int test_main(int argc, char * const argv[])
 		return FAIL;
 	}
 
+	/* initialize logger */
+	if (log_init() != OK) {
+		error("log_init() failed");
+		return FAIL;
+	}
+
 	/* initialize modules */
 	if (module_init() != OK) {
 		error("module_init() failed");
@@ -292,7 +298,7 @@ int test_main(int argc, char * const argv[])
 	}
 
 	/* register test module parent */
-	retval = module_parent_attach(RATT_TEST, &attach_module);
+	retval = module_parent_attach(&l_parent_info, &attach_module);
 	if (retval != OK) {
 		error("module_parent_attach() failed");
 		return FAIL;
@@ -305,8 +311,8 @@ int test_main(int argc, char * const argv[])
 	}
 
 	/* set logger */
-	if (log_init() != OK) {
-		error("log_init() failed");
+	if (log_attach() != OK) {
+		error("log_attach() failed");
 		return FAIL;
 	}
 

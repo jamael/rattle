@@ -116,18 +116,20 @@ static void on_interrupt(int signum, siginfo_t const *siginfo, void *udata)
 		debug("on_interrupt() undefined");
 }
 
-static void on_unregister(int (*process)(void *))
+static void
+on_unregister(int (*process)(void *), ratt_proc_attr_t *attr, void *udata)
 {
 	if (l_proc_hook && l_proc_hook->on_unregister) {
-		l_proc_hook->on_unregister(process);
+		l_proc_hook->on_unregister(process, attr, udata);
 	} else
 		debug("on_unregister() undefined");
 }
 
-static int on_register(int (*process)(void *), uint32_t flags, void *udata)
+static int
+on_register(int (*process)(void *), ratt_proc_attr_t *attr, void *udata)
 {
 	if (l_proc_hook && l_proc_hook->on_register)
-		return l_proc_hook->on_register(process, flags, udata);
+		return l_proc_hook->on_register(process, attr, udata);
 	debug("on_register() undefined");
 	return FAIL;
 }
@@ -215,14 +217,18 @@ int proc_init(void)
 	return OK;
 }
 
-void ratt_proc_unregister(int (*process)(void *))
+void ratt_proc_unregister(int (*process)(void *),
+                          ratt_proc_attr_t *attr,
+                          void *udata)
 {
 	RATTLOG_TRACE();
-	on_unregister(process);
+	on_unregister(process, attr, udata);
 }
 
-int ratt_proc_register(int (*process)(void *), uint32_t flags, void *udata)
+int ratt_proc_register(int (*process)(void *),
+                       ratt_proc_attr_t *attr,
+                       void *udata)
 {
 	RATTLOG_TRACE();
-	return on_register(process, flags, udata);
+	return on_register(process, attr, udata);
 }

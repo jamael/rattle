@@ -26,7 +26,9 @@
  */
 
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
 
 #include <signal.h>
 #include <stdint.h>
@@ -42,107 +44,124 @@
 #define MODULE_VERSION	"0.1"
 
 static enum {
-	PROC_STATE_BOOT = 0,	/* processor has not run yet */
-	PROC_STATE_RUN,		/* processor is running */
-	PROC_STATE_STOP		/* processor stopped */
-} l_proc_state = PROC_STATE_BOOT;
+	PROC_SERIAL_STATE_BOOT = 0,	/* processor has not run yet */
+	PROC_SERIAL_STATE_RUN,		/* processor is running */
+	PROC_SERIAL_STATE_STOP		/* processor stopped */
+} l_proc_state = PROC_SERIAL_STATE_BOOT;
 
 typedef struct {
 	int (*process)(void *);		/* process pointer */
-	uint32_t flags;			/* process flags */
+	ratt_proc_attr_t *attr;		/* process attributes */
 	void *udata;			/* process user data */
-
-	/* internal state */
-
-	uint32_t failure;		/* process failure count */
-} proc_register_t;
+} proc_serial_register_t;
 
 /* process table initial size */
-#ifndef PROC_TABLESIZ
-#define PROC_TABLESIZ	4
+#ifndef PROC_PROCTABSIZ
+#define PROC_PROCTABSIZ		4
 #endif
-static RATT_TABLE_INIT(l_proctable);	/* process table */
+static RATT_TABLE_INIT(l_proctab);	/* process table */
 
 static int compare_process(void const *in, void const *find)
 {
-	proc_register_t const *proc = in;
-	int (*process)(void *) = find;
-	return (proc->process == process) ? OK : FAIL;
-}
-
-static void on_unregister(int (*process)(void *))
-{
-	proc_register_t *proc = NULL;
+	proc_serial_register_t const *entry = in;
+	proc_serial_register_t const *proc = find;
 	int retval;
 
-	retval = ratt_table_search(&l_proctable, (void **) &proc,
-	    &compare_process, process);
+	if (proc->udata) {
+		if (proc->udata != entry->udata)
+			return FAIL;
+	}
+
+	if (proc->attr && entry->attr) {
+		retval = memcmp(proc->attr,
+		    entry->attr, sizeof(ratt_proc_attr_t));
+		if (retval != 0)
+			return FAIL;
+	}
+
+	return (proc->process == entry->process) ? OK : FAIL;
+}
+
+static void
+on_unregister(int (*process)(void *), ratt_proc_attr_t *attr, void *udata)
+{
+	proc_serial_register_t *entry = NULL, proc = { process, attr, udata };
+	int retval;
+
+	retval = ratt_table_search(&l_proctab, (void **) &entry,
+	    &compare_process, &proc);
 	if (retval != OK) {
 		debug("no matching process found");
 	} else
-		ratt_table_del_current(&l_proctable);
+		ratt_table_del_current(&l_proctab);
 }
 
-static int on_register(int (*process)(void *), uint32_t flags, void *udata)
+static int
+on_register(int (*process)(void *), ratt_proc_attr_t *attr, void *udata)
 {
-	proc_register_t proc = { process, flags, udata };
+	proc_serial_register_t proc = { process, attr, udata };
 	int retval;
 
-	retval = ratt_table_insert(&l_proctable, &proc);
+	retval = ratt_table_insert(&l_proctab, &proc);
 	if (retval != OK) {
 		debug("ratt_table_insert() failed");
 		return FAIL;
 	}
 
 	debug("registered process %p, slot %i",
-	    process, ratt_table_pos_last(&l_proctable));
+	    process, ratt_table_pos_last(&l_proctab));
 
 	return OK;
 }
 
 static int on_start(void)
 {
-	proc_register_t *proc = NULL;
+	proc_serial_register_t *proc = NULL;
 	int retval;
 
-	if (l_proc_state == PROC_STATE_RUN) {
+	if (l_proc_state == PROC_SERIAL_STATE_RUN) {
 		debug("processor is running already");
 		return FAIL;
 	}
 
-	l_proc_state = PROC_STATE_RUN;
+	l_proc_state = PROC_SERIAL_STATE_RUN;
 
 	do {
-		RATT_TABLE_FOREACH(&l_proctable, proc)
+		RATT_TABLE_FOREACH(&l_proctab, proc)
 		{
 			if (proc->process) {
 				retval = proc->process(proc->udata);
-				if (retval != OK) {
+				if (!(proc->attr->flags & RATTPROCFLSTC)) {
+					ratt_table_del_current(&l_proctab);
+					continue;
+				} else if (retval != OK) {
 					debug("process at %p failed",
 					    proc->process);
-					proc->failure++;
+					/* increase failure count;
+					 * check for max sticky failure conf;
+					 * trash if exceed.
+					 * proc->failure++; */
 				}
 			} else {	/* trash ghost process */
 				debug("ghost process registered on slot %u",
-				    ratt_table_pos_current(&l_proctable));
-				ratt_table_del_current(&l_proctable);
+				    ratt_table_pos_current(&l_proctab));
+				ratt_table_del_current(&l_proctab);
 			}
 		}
 
-	} while (l_proc_state == PROC_STATE_RUN);
+	} while (l_proc_state == PROC_SERIAL_STATE_RUN);
 
 	return OK;
 }
 
 static int on_stop(void)
 {
-	if (l_proc_state != PROC_STATE_STOP) {
-		l_proc_state = PROC_STATE_STOP;
+	if (l_proc_state != PROC_SERIAL_STATE_STOP) {
+		l_proc_state = PROC_SERIAL_STATE_STOP;
 		return OK;
 	}
 
 	debug("processor is not running");
-
 	return FAIL;
 }
 
@@ -160,38 +179,45 @@ static ratt_proc_hook_t proc_serial_hook = {
 	.on_register = &on_register,
 };
 
-static ratt_module_entry_t module_entry = {
-	.name = MODULE_NAME,
-	.desc = MODULE_DESC,
-	.version = MODULE_VERSION,
-//	.callbacks = &callbacks,
-};
-#if 0
-void __attribute__ ((destructor)) proc_serial_fini(void)
+static void *__proc_serial_attach(ratt_module_parent_t const *parinfo)
 {
-	RATTLOG_TRACE();
-	ratt_table_destroy(&l_proctable);
-	rattmod_unregister(&module_entry);
+	return &proc_serial_hook;
 }
 
-void __attribute__ ((constructor)) proc_serial_init(void)
+static void __proc_serial_fini(void)
+{
+	RATTLOG_TRACE();
+	ratt_table_destroy(&l_proctab);
+}
+
+static int __proc_serial_init(void)
 {
 	RATTLOG_TRACE();
 	int retval;
 	
-	retval = ratt_table_create(&l_proctable,
-	    PROC_TABLESIZ, sizeof(proc_register_t), 0);
+	retval = ratt_table_create(&l_proctab,
+	    PROC_PROCTABSIZ, sizeof(proc_serial_register_t), 0);
 	if (retval != OK) {
 		debug("ratt_table_create() failed");
-		return;
+		return FAIL;
 	} else
 		debug("allocated process table of size `%u'",
-		    PROC_TABLESIZ);
+		    PROC_PROCTABSIZ);
 
-	retval = rattmod_register(&module_entry);
-	if (retval != OK) {
-		debug("rattmod_register() failed");
-		ratt_table_destroy(&l_proctable);
-	}
+	return OK;
 }
-#endif
+
+static ratt_module_entry_t module_entry = {
+	.name = MODULE_NAME,
+	.desc = MODULE_DESC,
+	.version = MODULE_VERSION,
+	.attach = &__proc_serial_attach,
+	.constructor = &__proc_serial_init,
+	.destructor = &__proc_serial_fini,
+};
+
+void __attribute__ ((constructor)) proc_serial(void)
+{
+	RATTLOG_TRACE();
+	ratt_module_register(&module_entry);
+}

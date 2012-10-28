@@ -32,26 +32,27 @@
 #include <rattle/log.h>
 #include <rattle/module.h>
 
-#define MODULE_NAME	RATTLOG "_cons"
+#define MODULE_NAME	RATT_LOG "_cons"
 #define MODULE_DESC	"Remote console logger"
 #define MODULE_VERSION	"0.1"
 
-static conf_decl_t conftable[] = {
-	{ NULL }
-};
-
 static void log_cons_msg(int, const char *);
 
-static rattlog_callback_t log_callbacks = {
+static ratt_log_hook_t l_log_hook = {
 	.on_msg = &log_cons_msg
 };
 
-static rattmod_entry_t module_entry = {
+static void *log_cons_attach(ratt_module_parent_t const *parinfo)
+{
+	/* if parinfo version matches */
+	return &l_log_hook;
+}
+
+static ratt_module_entry_t module_entry = {
 	.name = MODULE_NAME,
 	.desc = MODULE_DESC,
 	.version = MODULE_VERSION,
-	.conftable = conftable,
-	.callbacks = &log_callbacks,
+	.attach = &log_cons_attach,
 };
 
 static void log_cons_msg(int level, const char *msg)
@@ -59,13 +60,8 @@ static void log_cons_msg(int level, const char *msg)
 	printf("\nto console: %s\n", msg);
 }
 
-void __attribute__ ((destructor)) log_cons_fini(void)
-{
-	RATTLOG_TRACE();
-}
-
 void __attribute__ ((constructor)) log_cons_init(void)
 {
 	RATTLOG_TRACE();
-	rattmod_register(&module_entry);
+	ratt_module_register(&module_entry);
 }

@@ -9,13 +9,13 @@
 #define RATTTABFLNRU	0x4	/* forbid fragment reuse */
 
 /* minimum table size; cannot be lower than 1 */
-#ifndef RATTTAB_MINSIZ
-#define RATTTAB_MINSIZ		1
+#ifndef RATTTABMINSIZ
+#define RATTTABMINSIZ		1
 #endif
 
 /* maximum table size; cannot be higher than SIZE_MAX - 1 */
-#ifndef RATTTAB_MAXSIZ
-#define RATTTAB_MAXSIZ		SIZE_MAX - 1
+#ifndef RATTTABMAXSIZ
+#define RATTTABMAXSIZ		SIZE_MAX - 1
 #endif
 
 typedef struct {

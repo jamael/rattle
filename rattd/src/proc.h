@@ -3,6 +3,7 @@
 
 void proc_fini(void *);
 int proc_init(void);
+int proc_attach(void);
 int proc_stop(void);
 int proc_start(void);
 

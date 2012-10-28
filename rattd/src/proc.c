@@ -1,5 +1,5 @@
 /*
- * RATTLE processor module parent
+ * RATTLE processor
  * Copyright (c) 2012, Jamael Seun
  * All rights reserved.
  * 
@@ -26,7 +26,9 @@
  */
 
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
 
 #include <signal.h>
 #include <stdint.h>
@@ -43,8 +45,8 @@
 #include "signal.h"
 
 /* attached process module */
-static rattmod_entry_t *l_proc_module = NULL;
-static rattproc_callback_t *l_callbacks = NULL;
+static ratt_module_entry_t *l_proc_module = NULL;
+static ratt_proc_hook_t *l_proc_hook = NULL;
 
 /* name of the parent config declaration */
 #define PROC_CONF_NAME	"process"
@@ -55,65 +57,77 @@ static rattproc_callback_t *l_callbacks = NULL;
 static RATTCONF_DEFVAL(l_conf_module_defval, RATTD_PROC_MODULE);
 static RATTCONF_LIST_INIT(l_conf_module);
 
-static rattconf_decl_t l_conftable[] = {
+static ratt_conf_t l_conf[] = {
 	{ "module", "process module to use. first load, first use.",
 	    l_conf_module_defval, &l_conf_module,
 	    RATTCONFDTSTR, RATTCONFFLLST },
 	{ NULL }
 };
 
-static int attach_module(rattmod_entry_t *modentry)
+static ratt_module_parent_t l_parent_info = {
+	RATT_PROC, RATT_PROC_VER_MAJOR, RATT_PROC_VER_MINOR,
+};
+
+static int attach_module(ratt_module_entry_t *entry)
 {
+	ratt_proc_hook_t *hook = NULL;
+
 	/* cannot attach multiple processor */
 	if (l_proc_module) {
 		debug("module `%s' attached first, reject `%s'",
-		    l_proc_module->name, modentry->name);
+		    l_proc_module->name, entry->name);
 		return FAIL;
 	}
 
-	l_proc_module = modentry;
-	l_callbacks = modentry->callbacks;
-	debug("attached callbacks for `%s'", modentry->name);
+	hook = entry->attach(&l_parent_info);
+	if (!hook) {
+		debug("`%s' chose not to attach", entry->name);
+		return FAIL;
+	}
 
+	l_proc_module = entry;
+	l_proc_hook = hook;
+
+	debug("`%s' hooked", entry->name);
 	return OK;
 }
 
 static inline int on_start()
 {
-	if (l_callbacks && l_callbacks->on_start)
-		return l_callbacks->on_start();
+	if (l_proc_hook && l_proc_hook->on_start)
+		return l_proc_hook->on_start();
 	debug("on_start() undefined");
 	return FAIL;
 }
 
 static inline int on_stop()
 {
-	if (l_callbacks && l_callbacks->on_stop)
-		return l_callbacks->on_stop();
+	if (l_proc_hook && l_proc_hook->on_stop)
+		return l_proc_hook->on_stop();
 	debug("on_stop() undefined");
 	return FAIL;
 }
 
 static void on_interrupt(int signum, siginfo_t const *siginfo, void *udata)
 {
-	if (l_callbacks && l_callbacks->on_interrupt) {
-		l_callbacks->on_interrupt(signum, siginfo, udata);
+	if (l_proc_hook && l_proc_hook->on_interrupt) {
+		l_proc_hook->on_interrupt(signum, siginfo, udata);
 	} else
 		debug("on_interrupt() undefined");
 }
 
 static void on_unregister(int (*process)(void *))
 {
-	if (l_callbacks && l_callbacks->on_unregister) {
-		l_callbacks->on_unregister(process);
+	if (l_proc_hook && l_proc_hook->on_unregister) {
+		l_proc_hook->on_unregister(process);
 	} else
 		debug("on_unregister() undefined");
 }
 
 static int on_register(int (*process)(void *), uint32_t flags, void *udata)
 {
-	if (l_callbacks && l_callbacks->on_register)
-		return l_callbacks->on_register(process, flags, udata);
+	if (l_proc_hook && l_proc_hook->on_register)
+		return l_proc_hook->on_register(process, flags, udata);
 	debug("on_register() undefined");
 	return FAIL;
 }
@@ -130,14 +144,47 @@ int proc_start()
 	return on_start();
 }
 
-void proc_fini(void *udata)
+void proc_detach(void *udata)
 {
 	RATTLOG_TRACE();
 	l_proc_module = NULL;
-	l_callbacks = NULL;
-	module_parent_detach(RATTPROC);
+	l_proc_hook = NULL;
+	module_parent_detach(&l_parent_info);
+}
+
+int proc_attach(void)
+{
+	int retval;
+
+	retval = module_parent_attach(&l_parent_info, &attach_module);
+	if (retval != OK) {
+		debug("module_parent_attach() failed");
+		return FAIL;
+	}
+
+	retval = ratt_module_attach_from_config(RATT_PROC, &l_conf_module);
+	if (retval != OK) {
+		debug("ratt_module_attach_from_config() failed");
+		error("no processor module attached");
+		module_parent_detach(&l_parent_info);
+		return FAIL;
+	}
+
+	retval = dtor_register(proc_detach, NULL);
+	if (retval != OK) {
+		debug("dtor_register() failed");
+		module_parent_detach(&l_parent_info);
+		return FAIL;
+	}
+
+	return OK;
+}
+
+void proc_fini(void *udata)
+{
+	RATTLOG_TRACE();
 	signal_unregister(&on_interrupt);
-	conf_release(l_conftable);
+	conf_release(l_conf);
 }
 
 int proc_init(void)
@@ -145,7 +192,7 @@ int proc_init(void)
 	RATTLOG_TRACE();
 	int retval;
 
-	retval = conf_parse(PROC_CONF_NAME, l_conftable);
+	retval = conf_parse(PROC_CONF_NAME, l_conf);
 	if (retval != OK) {
 		debug("conf_parse() failed");
 		return FAIL;
@@ -157,43 +204,24 @@ int proc_init(void)
 		return FAIL;
 	}
 
-	retval = module_parent_attach(RATTPROC, &attach_module);
-	if (retval != OK) {
-		debug("module_parent_attach() failed");
-		signal_unregister(&on_interrupt);
-		conf_release(l_conftable);
-		return FAIL;
-	}
-
-	retval = rattmod_attach_from_config(RATTPROC, &l_conf_module);
-	if (retval != OK) {
-		debug("rattmod_attach_from_config() failed");
-		error("no processor module attached");
-		module_parent_detach(RATTPROC);
-		signal_unregister(&on_interrupt);
-		conf_release(l_conftable);
-		return FAIL;
-	}
-
 	retval = dtor_register(proc_fini, NULL);
 	if (retval != OK) {
 		debug("dtor_register() failed");
-		module_parent_detach(RATTPROC);
 		signal_unregister(&on_interrupt);
-		conf_release(l_conftable);
+		conf_release(l_conf);
 		return FAIL;
 	}
 
 	return OK;
 }
 
-void rattproc_unregister(int (*process)(void *))
+void ratt_proc_unregister(int (*process)(void *))
 {
 	RATTLOG_TRACE();
 	on_unregister(process);
 }
 
-int rattproc_register(int (*process)(void *), uint32_t flags, void *udata)
+int ratt_proc_register(int (*process)(void *), uint32_t flags, void *udata)
 {
 	RATTLOG_TRACE();
 	return on_register(process, flags, udata);

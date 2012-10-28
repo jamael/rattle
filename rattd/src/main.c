@@ -26,7 +26,9 @@
  */
 
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
 
 #include <stddef.h>
 #include <stdio.h>
@@ -51,7 +53,7 @@ extern int test_main(int, char * const *);
 #endif
 
 #ifndef CONFFILEPATH
-#define CONFFILEPATH "/etc/rattle/rattd.conf"
+#define CONFFILEPATH	"/etc/rattle/rattd.conf"
 #endif
 
 #ifdef WANT_TESTS
@@ -180,12 +182,20 @@ int main(int argc, char * const argv[])
 		exit(1);
 	}
 
-	/* From now on, finish functions (_fini)
-	   must register with dtor_register(). */
+	/*
+	 * From now on, finish functions (_fini)
+	 * must register with dtor_register().
+	 */
 
 	/* load configuration file */
 	if (conf_init() != OK || load_config() != OK) {
 		debug("conf_init() or load_config() failed");
+		exit(1);
+	}
+
+	/* initialize logger */
+	if (log_init() != OK) {
+		debug("log_init() failed");
 		exit(1);
 	}
 
@@ -199,11 +209,14 @@ int main(int argc, char * const argv[])
 	if (proc_init() != OK) {
 		debug("proc_init() failed");
 		exit(1);
+	} else if (proc_attach() != OK) {
+		debug("proc_attach() failed");
+		exit(1);
 	}
 
 	/* set logger */
-	if (log_init() != OK) {
-		debug("log_init() failed");
+	if (log_attach() != OK) {
+		debug("log_attach() failed");
 		exit(1);
 	}
 

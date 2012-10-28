@@ -26,7 +26,9 @@
  */
 
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -41,56 +43,56 @@ typedef struct {
 } dtor_register_t;
 
 /* destructor table initial size */
-#ifndef DTOR_TABLESIZ
-#define DTOR_TABLESIZ	4
+#ifndef DTOR_DTORTABSIZ
+#define DTOR_DTORTABSIZ	4
 #endif
-static RATT_TABLE_INIT(l_dtortable);	/* destructor table */
+static RATT_TABLE_INIT(l_dtortab);	/* destructor table */
 
 void dtor_unregister(void (*dtor)(void *udata))
 {
 	RATTLOG_TRACE();
-	dtor_register_t *reg = NULL;
+	dtor_register_t *entry = NULL;
 
-	RATT_TABLE_FOREACH(&l_dtortable, reg)
+	RATT_TABLE_FOREACH(&l_dtortab, entry)
 	{
-		if (reg->dtor == dtor)
-			reg->dtor = reg->udata = NULL;
+		if (entry->dtor == dtor)
+			entry->dtor = entry->udata = NULL;
 	}
 }
 
 int dtor_register(void (*dtor)(void *udata), void *udata)
 {
 	RATTLOG_TRACE();
-	dtor_register_t reg = { dtor, udata };
+	dtor_register_t entry = { dtor, udata };
 	int retval;
 
-	retval = ratt_table_push(&l_dtortable, &reg);
+	retval = ratt_table_push(&l_dtortab, &entry);
 	if (retval != OK) {
 		debug("ratt_table_push() failed");
 		return FAIL;
 	}
 
 	debug("registered destructor %p, slot %i",
-	    dtor, ratt_table_pos_last(&l_dtortable));
+	    dtor, ratt_table_pos_last(&l_dtortab));
 	return OK;
 }
 
 void dtor_callback(void)
 {
 	RATTLOG_TRACE();
-	dtor_register_t *reg = NULL;
+	dtor_register_t *entry = NULL;
 
-	RATT_TABLE_FOREACH_REVERSE(&l_dtortable, reg)
+	RATT_TABLE_FOREACH_REVERSE(&l_dtortab, entry)
 	{
-		if (reg->dtor)
-			reg->dtor(reg->udata);
+		if (entry->dtor)
+			entry->dtor(entry->udata);
 	}
 }
 
 void dtor_fini(void *udata)
 {
 	RATTLOG_TRACE();
-	ratt_table_destroy(&l_dtortable);
+	ratt_table_destroy(&l_dtortab);
 }
 
 int dtor_init(void)
@@ -98,19 +100,19 @@ int dtor_init(void)
 	RATTLOG_TRACE();
 	int retval;
 	
-	retval = ratt_table_create(&l_dtortable,
-	    DTOR_TABLESIZ, sizeof(dtor_register_t), 0);
+	retval = ratt_table_create(&l_dtortab,
+	    DTOR_DTORTABSIZ, sizeof(dtor_register_t), RATTTABFLNRU);
 	if (retval != OK) {
 		debug("ratt_table_create() failed");
 		return FAIL;
 	} else
 		debug("allocated destructor table of size `%u'",
-		    DTOR_TABLESIZ);
+		    DTOR_DTORTABSIZ);
 
 	retval = dtor_register(dtor_fini, NULL);
 	if (retval != OK) {
 		debug("dtor_register() failed");
-		ratt_table_destroy(&l_dtortable);
+		ratt_table_destroy(&l_dtortab);
 		return FAIL;
 	}
 

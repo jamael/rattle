@@ -26,7 +26,9 @@
  */
 
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
 
 #include <libconfig.h>
 #include <stdlib.h>
@@ -37,6 +39,7 @@
 #include <rattle/log.h>
 #include <rattle/test.h>
 
+#include "conf.h"
 #include "dtor.h"
 #include "log.h"
 #include "module.h"

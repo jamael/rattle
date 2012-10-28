@@ -25,7 +25,10 @@
  * SUCH DAMAGE.
  */
 
+
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
 
 #include <errno.h>
 #include <libconfig.h>
@@ -40,7 +43,7 @@
 #include "dtor.h"
 
 /* initial size of a value list */
-#define CONF_TABLESIZ		4
+#define CONF_LSTTABSIZ		4
 
 /* maximum size of a declaration path */
 #define CONF_SETTPATHMAX	128
@@ -213,7 +216,7 @@ static int list_create(ratt_table_t *table, size_t cnt, int type)
 	int retval;
 
 	if (!cnt)
-		cnt = CONF_TABLESIZ;
+		cnt = CONF_LSTTABSIZ;
 
 	switch (type) {
 	case RATTCONFDTSTR:
@@ -242,7 +245,7 @@ static int list_create(ratt_table_t *table, size_t cnt, int type)
 	return OK;
 }
 
-static int decl_use_default_value(rattconf_decl_t *decl)
+static int decl_use_default_value(ratt_conf_t *decl)
 {
 	const char **defval = NULL;
 	int retval, num;
@@ -280,7 +283,7 @@ static int decl_use_default_value(rattconf_decl_t *decl)
 	return OK;
 }
 
-static int decl_use_config_list(rattconf_decl_t *decl, config_setting_t *sett)
+static int decl_use_config_list(ratt_conf_t *decl, config_setting_t *sett)
 {
 	config_setting_t *elem = NULL;
 	const char *str = NULL;
@@ -346,7 +349,7 @@ static int decl_use_config_list(rattconf_decl_t *decl, config_setting_t *sett)
 	return OK;
 }
 
-static int decl_use_config_value(rattconf_decl_t *decl, config_setting_t *sett)
+static int decl_use_config_value(ratt_conf_t *decl, config_setting_t *sett)
 {
 	char const *str = NULL;
 	int num, retval;
@@ -416,7 +419,7 @@ static int decl_use_config_value(rattconf_decl_t *decl, config_setting_t *sett)
 	return OK;
 }
 
-static inline void decl_release(rattconf_decl_t *decl)
+static inline void decl_release(ratt_conf_t *decl)
 {
 	if (decl && (decl->flags & RATTCONFFLLST)) {
 		debug("releasing list for %s", decl->path);
@@ -488,8 +491,8 @@ int conf_open_builtin(const char *cfg)
 	return OK;
 }
 
-void conf_release_reverse(rattconf_decl_t const * const first,
-                          rattconf_decl_t *current)
+void conf_release_reverse(ratt_conf_t const * const first,
+                          ratt_conf_t *current)
 {
 	RATTLOG_TRACE();
 	if (first)
@@ -497,17 +500,17 @@ void conf_release_reverse(rattconf_decl_t const * const first,
 			decl_release(current);
 }
 
-void conf_release(rattconf_decl_t *decl)
+void conf_release(ratt_conf_t *decl)
 {
 	RATTLOG_TRACE();
 	for (; (decl != NULL) && (decl->path != NULL); decl++)
 		decl_release(decl);
 }
 
-int conf_parse(char const *parent, rattconf_decl_t *decl)
+int conf_parse(char const *parent, ratt_conf_t *decl)
 {
 	RATTLOG_TRACE();
-	rattconf_decl_t const * const first = decl;
+	ratt_conf_t const * const first = decl;
 	config_setting_t *sett = NULL;
 	char settpath[CONF_SETTPATHMAX] = { '\0' };
 	char *declpath = NULL;

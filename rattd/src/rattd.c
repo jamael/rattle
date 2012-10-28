@@ -55,7 +55,7 @@ static RATTCONF_LIST_INIT(l_conf_proto);
 static RATTCONF_DEFVAL(l_conf_port_defval, RATTD_PORT);
 static RATTCONF_LIST_INIT(l_conf_port);
 
-static conf_decl_t l_conftable[] = {
+static ratt_conf_t l_conf[] = {
 	{ "listen", "IP, FQDN, interfaces to listen on or `any' for all",
 	    l_conf_listen_defval, &l_conf_listen,
 	    RATTCONFDTSTR, RATTCONFFLLST },
@@ -71,7 +71,7 @@ static conf_decl_t l_conftable[] = {
 void rattd_fini(void *udata)
 {
 	RATTLOG_TRACE();
-	conf_release(l_conftable);
+	conf_release(l_conf);
 }
 
 int rattd_init(void)
@@ -79,7 +79,7 @@ int rattd_init(void)
 	RATTLOG_TRACE();
 	int retval;
 
-	retval = conf_parse(NULL, l_conftable);
+	retval = conf_parse(NULL, l_conf);
 	if (retval != OK) {
 		debug("conf_parse() failed");
 		return FAIL;

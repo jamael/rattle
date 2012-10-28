@@ -21,11 +21,9 @@ typedef struct {
 	void *value;			/* config value */
 	enum RATTCONFDT type;		/* type of value */
 	unsigned int flags;		/* optional flags */
-} rattconf_decl_t;
+} ratt_conf_t;
 
-typedef rattconf_decl_t conf_decl_t;
-
-#define rattconf_list_t ratt_table_t
+#define ratt_conf_list_t ratt_table_t
 #define RATTCONF_DEFVAL(defval, def...) \
     char const *(defval)[] = { def, '\0' }
 #define RATTCONF_LIST_INIT(tab) RATT_TABLE_INIT((tab))

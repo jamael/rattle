@@ -26,7 +26,9 @@
  */
 
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
 
 #include <errno.h>
 #include <stdlib.h>
@@ -115,9 +117,9 @@ static int realloc_and_move(ratt_table_t *table)
 	if (!growsiz) /* cannot be 0 */
 		growsiz = 1;
 
-	if ((table->size + growsiz) > RATTTAB_MAXSIZ) {
-		debug("increment is over maximum size (%u)", RATTTAB_MAXSIZ);
-		newsiz = RATTTAB_MAXSIZ;
+	if ((table->size + growsiz) > RATTTABMAXSIZ) {
+		debug("increment is over maximum size (%u)", RATTTABMAXSIZ);
+		newsiz = RATTTABMAXSIZ;
 	} else
 		newsiz = table->size + growsiz;
 
@@ -375,15 +377,13 @@ int ratt_table_create(ratt_table_t *table, size_t cnt, size_t size, int flags)
 {
 	RATTLOG_TRACE();
 
-	if (cnt < RATTTAB_MINSIZ) {
-		warning("initial table size of %u is not enough", cnt);
+	if (cnt < RATTTABMINSIZ) {
 		debug("asked for size %u when minimum is %u",
-		    cnt, RATTTAB_MINSIZ);
+		    cnt, RATTTABMINSIZ);
 		return FAIL;
-	} else if (cnt > RATTTAB_MAXSIZ) {
-		warning("initial table size of %u is too much", cnt);
+	} else if (cnt > RATTTABMAXSIZ) {
 		debug("asked for size %u when maximum is %u",
-		    cnt, RATTTAB_MAXSIZ);
+		    cnt, RATTTABMAXSIZ);
 		return FAIL;
 	}
 

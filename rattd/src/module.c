@@ -26,7 +26,9 @@
  */
 
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
 
 #include <dirent.h>
 #include <dlfcn.h>
@@ -44,21 +46,24 @@
 #include "conf.h"
 #include "dtor.h"
 
+/* name of the config declaration */
+#define MODULE_CONF_NAME	"module"
+
 /* initial module table size */
-#ifndef MODULE_TABLESIZ
-#define MODULE_TABLESIZ		16
+#ifndef MODULE_MODTABSIZ
+#define MODULE_MODTABSIZ		16
 #endif
-static RATT_TABLE_INIT(l_modtable);	/* module table */
+static RATT_TABLE_INIT(l_modtab);	/* module table */
 
 /* initial parent table size */
-#ifndef MODULE_PARENT_TABLESIZ
-#define MODULE_PARENT_TABLESIZ	16
+#ifndef MODULE_PARTABSIZ
+#define MODULE_PARTABSIZ	16
 #endif
-static RATT_TABLE_INIT(l_partable);	/* parent table */
+static RATT_TABLE_INIT(l_partab);	/* parent table */
 
 typedef struct {
-	char const * const name;		/* parent name */
-	int (*attach)(rattmod_entry_t *);	/* attach callback */
+	ratt_module_parent_t const *info;	/* parent information */
+	int (*attach)(ratt_module_entry_t const *); /* attach callback */
 } module_parent_t;
 
 #ifndef RATTD_MODULE_PATH
@@ -67,7 +72,7 @@ typedef struct {
 static RATTCONF_DEFVAL(l_conf_modpath_defval, RATTD_MODULE_PATH);
 static RATTCONF_LIST_INIT(l_conf_modpath);
 
-static rattconf_decl_t l_conftable[] = {
+static ratt_conf_t l_conf[] = {
 	{ "search-path", "list of path to search for modules",
 	    l_conf_modpath_defval, &l_conf_modpath,
 	    RATTCONFDTSTR, RATTCONFFLLST },
@@ -76,9 +81,9 @@ static rattconf_decl_t l_conftable[] = {
 
 static int register_module_handle(void *handle)
 {
-	rattmod_entry_t *entry = NULL;
+	ratt_module_entry_t *entry = NULL;
 
-	entry = ratt_table_get_last(&l_modtable);
+	entry = ratt_table_get_last(&l_modtab);
 	if (entry && (entry->handle == NULL)) {
 		entry->handle = handle;
 		return OK;
@@ -89,9 +94,9 @@ static int register_module_handle(void *handle)
 
 static int unload_modules()
 {
-	rattmod_entry_t *entry = NULL;
+	ratt_module_entry_t *entry = NULL;
 
-	RATT_TABLE_FOREACH(&l_modtable, entry)
+	RATT_TABLE_FOREACH(&l_modtab, entry)
 	{
 		if (entry->handle)
 			dlclose(entry->handle);
@@ -151,24 +156,23 @@ static int compare_parent_name(void const *in, void const *find)
 {
 	module_parent_t const *parent = in;
 	char const *name = find;
-	return (strcmp(parent->name, name)) ? FAIL : OK;
+	return (strcmp(parent->info->name, name)) ? FAIL : OK;
 }
 
 static int compare_module_name(void const *in, void const *find)
 {
-	rattmod_entry_t const *module = in;
+	ratt_module_entry_t const *module = in;
 	char const *name = find;
 	return (strcmp(module->name, name)) ? FAIL : OK;
 }
 
 static int attach_module(char const *parname, char const *modname)
 {
-	RATTLOG_TRACE();
-	rattmod_entry_t *module = NULL;
+	ratt_module_entry_t *module = NULL;
 	module_parent_t *parent = NULL;
 	int retval;
 
-	retval = ratt_table_search(&l_partable, (void **) &parent,
+	retval = ratt_table_search(&l_partab, (void **) &parent,
 	    &compare_parent_name, parname);
 	if (retval != OK) {
 		debug("could not find parent `%s'", parname);
@@ -176,7 +180,7 @@ static int attach_module(char const *parname, char const *modname)
 		return FAIL;
 	}
 
-	retval = ratt_table_search(&l_modtable, (void **) &module,
+	retval = ratt_table_search(&l_modtab, (void **) &module,
 	    &compare_module_name, modname);
 	if (retval != OK) {
 		debug("could not find module `%s'", modname);
@@ -184,20 +188,20 @@ static int attach_module(char const *parname, char const *modname)
 		return FAIL;
 	}
 
-	if (module->parent_name) {
+	if (module->parinfo) {
 		debug("module `%s' is already attached to parent `%s'",
-		    modname, module->parent_name);
+		    modname, module->parinfo->name);
 		return FAIL;
 	}
 
-	if (!(module->callbacks)) {
-		debug("module `%s' provides no callback", module->name);
+	if (!(module->attach)) {
+		debug("module `%s' provides no hook", module->name);
 		return FAIL;
 	}
 
 	debug("attaching module `%s' to `%s'", modname, parname);
 	parent->attach(module);
-	module->parent_name = parent->name;
+	module->parinfo = parent->info;
 
 	return OK;
 }
@@ -205,7 +209,7 @@ static int attach_module(char const *parname, char const *modname)
 int module_attach(char const *parname, char const *modname)
 {
 	RATTLOG_TRACE();
-	char realmodname[RATTMOD_NAMEMAXSIZ] = { '\0' };
+	char realmodname[RATTMODNAMSIZ] = { '\0' };
 	char const *separator = modname;
 	size_t parlen, modlen;
 
@@ -228,62 +232,65 @@ int module_attach(char const *parname, char const *modname)
 		return attach_module(parname, modname);
 
 	/* modname must be prefixed with parname_ */
-	snprintf(realmodname, RATTMOD_NAMEMAXSIZ, "%s_%s", parname, modname);
+	snprintf(realmodname, RATTMODNAMSIZ, "%s_%s", parname, modname);
 
 	return attach_module(parname, realmodname);
 }
 
-int module_parent_detach(char const *parname)
+int module_parent_detach(ratt_module_parent_t const *parinfo)
 {
 	RATTLOG_TRACE();
 	module_parent_t *parent = NULL;
 	int retval;
 
-	retval = ratt_table_search(&l_partable, (void **) &parent,
-	    &compare_parent_name, parname);
+	retval = ratt_table_search(&l_partab, (void **) &parent,
+	    &compare_parent_name, parinfo->name);
 	if (retval != OK) {
 		debug("ratt_table_search() failed");
 		return FAIL;
 	}
 
-	ratt_table_del_current(&l_partable);
+	/*XXX: should detach all modules attached */
+
+	ratt_table_del_current(&l_partab);
 
 	return OK;
 }
 
-int module_parent_attach(char const *parname, int (*attach)(rattmod_entry_t *))
+int module_parent_attach(ratt_module_parent_t const *parinfo,
+                         int (*attach)(ratt_module_entry_t const *))
 {
 	RATTLOG_TRACE();
-	module_parent_t *parent, new_parent = { parname, attach };
+	module_parent_t *parent, new_parent = { parinfo, attach };
 	int retval;
 
-	if (!parname) {
-		debug("cannot register parent without a name");
+	if (!parinfo) {
+		debug("cannot register parent without information");
 		return FAIL;
 	} else if (!attach) {
 		debug("cannot register parent without attach callback");
 		return FAIL;
 	}
 
-	retval = ratt_table_search(&l_partable, (void **) &parent,
-	    &compare_parent_name, parname);
+	retval = ratt_table_search(&l_partab, (void **) &parent,
+	    &compare_parent_name, parinfo->name);
 	if (retval == OK) {
-		debug("module parent `%s' exists in table", parname);
+		debug("module parent `%s' exists in table", parinfo->name);
 		return FAIL;
 	}
 
-	retval = ratt_table_push(&l_partable, &new_parent);
+	retval = ratt_table_insert(&l_partab, &new_parent);
 	if (retval != OK) {
 		debug("ratt_table_push() failed");
 		return FAIL;
 	}
 
-	debug("module parent `%s' added", parname);
+	debug("module parent `%s' added", parinfo->name);
 
 	return OK;
 }
 
-int module_parent_unregister(rattmod_entry_t const *entry)
+int module_parent_unregister(ratt_module_entry_t const *entry)
 {
 	RATTLOG_TRACE();
 	int retval;
@@ -291,9 +298,12 @@ int module_parent_unregister(rattmod_entry_t const *entry)
 	if (!entry) {
 		debug("NULL module entry given");
 		return FAIL;
+	} else if (!entry->parinfo) {
+		debug("reject module without parent information");
+		return FAIL;
 	}
 
-	retval = module_parent_detach(entry->name);
+	retval = module_parent_detach(entry->parinfo);
 	if (retval != OK) {
 		debug("module_parent_detach() failed");
 		return FAIL;
@@ -302,7 +312,7 @@ int module_parent_unregister(rattmod_entry_t const *entry)
 	return OK;
 }
 
-int module_parent_register(rattmod_entry_t const *entry)
+int module_parent_register(ratt_module_entry_t const *entry)
 {
 	RATTLOG_TRACE();
 	int retval;
@@ -310,9 +320,16 @@ int module_parent_register(rattmod_entry_t const *entry)
 	if (!entry) {
 		debug("NULL module entry given");
 		return FAIL;
+	} else if (!entry->parinfo) {
+		debug("reject module without parent information");
+		return FAIL;
+	} else if (!entry->parinfo->attach) {
+		debug("reject module without attach callback");
+		return FAIL;
 	}
 
-	retval = module_parent_attach(entry->name, entry->callbacks);
+	retval = module_parent_attach(entry->parinfo,
+	    entry->parinfo->attach);
 	if (retval != OK) {
 		debug("module_parent_attach() failed");
 		return FAIL;
@@ -321,10 +338,10 @@ int module_parent_register(rattmod_entry_t const *entry)
 	return OK;
 }
 
-int module_unregister(rattmod_entry_t const *entry)
+int module_unregister(ratt_module_entry_t const *entry)
 {
 	RATTLOG_TRACE();
-	rattmod_entry_t *module = NULL;
+	ratt_module_entry_t *module = NULL;
 	int retval;
 
 	if (!entry) {
@@ -332,23 +349,23 @@ int module_unregister(rattmod_entry_t const *entry)
 		return FAIL;
 	}
 
-	retval = ratt_table_search(&l_modtable, (void **) &module,
+	retval = ratt_table_search(&l_modtab, (void **) &module,
 	    &compare_module_name, entry->name);
 	if (retval != OK) {
 		debug("ratt_table_search() failed");
 		return FAIL;
 	}
 
-	ratt_table_del_current(&l_modtable);
+	ratt_table_del_current(&l_modtab);
 
 	return OK;
 
 }
 
-int module_register(rattmod_entry_t const *entry)
+int module_register(ratt_module_entry_t const *entry)
 {
 	RATTLOG_TRACE();
-	rattmod_entry_t *module = NULL;
+	ratt_module_entry_t *module = NULL;
 	int retval;
 
 	if (!entry) {
@@ -356,16 +373,16 @@ int module_register(rattmod_entry_t const *entry)
 		return FAIL;
 	}
 
-	retval = ratt_table_search(&l_modtable, (void **) &module,
+	retval = ratt_table_search(&l_modtab, (void **) &module,
 	    &compare_module_name, entry->name);
 	if (retval == OK) {
 		debug("module `%s' exists in table", entry->name);
 		return FAIL;
 	}
 
-	retval = ratt_table_push(&l_modtable, entry);
+	retval = ratt_table_insert(&l_modtab, entry);
 	if (retval != OK) {
-		debug("ratt_table_push() failed");
+		debug("ratt_table_insert() failed");
 		return FAIL;
 	}
 
@@ -376,9 +393,9 @@ void module_fini(void *udata)
 {
 	RATTLOG_TRACE();
 	unload_modules();
-	ratt_table_destroy(&l_modtable);
-	ratt_table_destroy(&l_partable);
-	conf_release(l_conftable);
+	ratt_table_destroy(&l_modtab);
+	ratt_table_destroy(&l_partab);
+	conf_release(l_conf);
 }
 
 int module_init(void)
@@ -386,32 +403,32 @@ int module_init(void)
 	RATTLOG_TRACE();
 	int retval;
 
-	retval = conf_parse("module", l_conftable);
+	retval = conf_parse(MODULE_CONF_NAME, l_conf);
 	if (retval != OK) {
 		debug("conf_parse() failed");
 		return FAIL;
 	}
 
-	retval = ratt_table_create(&l_modtable,
-	    MODULE_TABLESIZ, sizeof(rattmod_entry_t), 0);
+	retval = ratt_table_create(&l_modtab,
+	    MODULE_MODTABSIZ, sizeof(ratt_module_entry_t), 0);
 	if (retval != OK) {
 		debug("ratt_table_create() failed");
-		conf_release(l_conftable);
+		conf_release(l_conf);
 		return FAIL;
 	} else
 		debug("allocated module table of size `%u'",
-		    MODULE_TABLESIZ);
+		    MODULE_MODTABSIZ);
 
-	retval = ratt_table_create(&l_partable,
-	    MODULE_PARENT_TABLESIZ, sizeof(module_parent_t), 0);
+	retval = ratt_table_create(&l_partab,
+	    MODULE_PARTABSIZ, sizeof(module_parent_t), 0);
 	if (retval != OK) {
 		debug("ratt_table_create() failed");
-		ratt_table_destroy(&l_modtable);
-		conf_release(l_conftable);
+		ratt_table_destroy(&l_modtab);
+		conf_release(l_conf);
 		return FAIL;
 	} else
 		debug("allocated parent table of size `%u'",
-		    MODULE_PARENT_TABLESIZ);
+		    MODULE_PARTABSIZ);
 
 	/* load available modules */
 	load_modules();
@@ -420,8 +437,9 @@ int module_init(void)
 	if (retval != OK) {
 		debug("dtor_register() failed");
 		unload_modules();
-		ratt_table_destroy(&l_modtable);
-		conf_release(l_conftable);
+		ratt_table_destroy(&l_partab);
+		ratt_table_destroy(&l_modtab);
+		conf_release(l_conf);
 		return FAIL;
 	}
 
@@ -429,18 +447,21 @@ int module_init(void)
 }
 
 /**
- * \fn rattmod_unregister(rattmod_entry_t const *entry)
+ * \fn ratt_module_unregister(ratt_module_entry_t const *entry)
  * \brief unregister a module
  *
- * Usage of rattmod_unregister() is necessary for a module to
+ * Usage of ratt_module_unregister() is necessary for a module to
  * vanish from the RATTLE module registry.
  *
  * \param entry		A pointer to the module entry
  */
-int rattmod_unregister(rattmod_entry_t const *entry)
+int ratt_module_unregister(ratt_module_entry_t const *entry)
 {
 	RATTLOG_TRACE();
 	int retval;
+
+	if (entry->destructor)
+		entry->destructor();
 
 	if (entry->flags & RATTMODFLPAR) { /* a module parent */
 		retval = module_parent_unregister(entry);
@@ -462,18 +483,26 @@ int rattmod_unregister(rattmod_entry_t const *entry)
 }
 
 /**
- * \fn rattmod_register(rattmod_entry_t const *entry)
+ * \fn ratt_module_register(ratt_module_entry_t const *entry)
  * \brief register a module
  *
- * Usage of rattmod_register() is necessary for a module to
+ * Usage of ratt_module_register() is necessary for a module to
  * introduce itself to the RATTLE module registry.
  *
  * \param entry		A pointer to the module entry
  */
-int rattmod_register(rattmod_entry_t const *entry)
+int ratt_module_register(ratt_module_entry_t const *entry)
 {
 	RATTLOG_TRACE();
 	int retval;
+
+	if (entry->constructor) {
+		retval = entry->constructor();
+		if (retval != OK) {
+			debug("`%s' constructor failed", entry->name);
+			return FAIL;
+		}
+	}
 
 	if (entry->flags & RATTMODFLPAR) { /* a module parent */
 		retval = module_parent_register(entry);
@@ -492,4 +521,34 @@ int rattmod_register(rattmod_entry_t const *entry)
 	debug("loaded module `%s'", entry->name);
 
 	return OK;
+}
+
+/**
+ * \fn static inline int
+ * ratt_module_attach_from_config(char const *parname,
+ *                                rattconf_list_t *modules)
+ * \brief attach modules from config setting
+ *
+ * Helper to attach modules found in a config list setting.
+ *
+ * \param parname	parent name to attach modules to
+ * \param modules	list of modules name in a config setting
+ * \return OK if at least one module attached to parent, FAIL otherwise.
+ */
+int ratt_module_attach_from_config(char const *parname, ratt_conf_list_t *modules)
+{
+	RATTLOG_TRACE();
+	char **name = NULL;
+	int retval, attached = 0;
+
+	RATTCONF_LIST_FOREACH(modules, name)
+	{
+		retval = module_attach(parname, *name);
+		if (retval != OK) {
+			debug("module_attach() failed");
+		} else
+			attached++;
+	}
+
+	return (attached) ? OK : FAIL;
 }

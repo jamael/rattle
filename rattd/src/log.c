@@ -1,5 +1,5 @@
 /*
- * RATTLE logger module parent
+ * RATTLE logger
  * Copyright (c) 2012, Jamael Seun
  * All rights reserved.
  * 
@@ -26,7 +26,9 @@
  */
 
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -44,11 +46,11 @@
 /* name of the config declaration */
 #define LOG_CONF_NAME	"logger"
 
-/* callback table initial size */
-#ifndef LOG_CALLTABLESIZ
-#define LOG_CALLTABLESIZ	4
+/* hook table initial size */
+#ifndef LOG_HOOKTABSIZ
+#define LOG_HOOKTABSIZ		4
 #endif
-static RATT_TABLE_INIT(l_calltable);	/* callback table */
+static RATT_TABLE_INIT(l_hooktab);	/* hook table */
 
 /* logger verbosity level */
 #ifdef DEBUG
@@ -69,7 +71,7 @@ static RATTCONF_LIST_INIT(l_conf_module);
 static RATTCONF_DEFVAL(l_conf_verbose_defval, RATTD_LOG_VERBOSE);
 static char *l_conf_verbose = NULL;
 
-static conf_decl_t l_conftable[] = {
+static ratt_conf_t l_conf[] = {
 	{ "verbose", "level of verbosity",
 	    l_conf_verbose_defval, &l_conf_verbose,
 	    RATTCONFDTSTR, 0 },
@@ -79,40 +81,44 @@ static conf_decl_t l_conftable[] = {
 	{ NULL }
 };
 
-static int attach_module(rattmod_entry_t *modentry)
+static ratt_module_parent_t l_parent_info = {
+	RATT_LOG, RATT_LOG_VER_MAJOR, RATT_LOG_VER_MINOR,
+};
+
+static int attach_module(ratt_module_entry_t *entry)
 {
+	ratt_log_hook_t *hook = NULL;
 	int retval;
 
-	retval = ratt_table_push(&l_calltable, modentry->callbacks);
+	hook = entry->attach(&l_parent_info);
+	if (!hook) {
+		debug("`%s' chose not to attach", entry->name);
+		return FAIL;
+	}
+
+	retval = ratt_table_push(&l_hooktab, hook);
 	if (retval != OK) {
 		debug("ratt_table_push() failed");
 		return FAIL;
 	}
 
-	debug("attached callbacks for `%s'", modentry->name);
+	debug("`%s' hooked", entry->name);
 	return OK;
 }
 
-static void load_modules_callbacks(void)
-{
-	char **modname = NULL;
-	int retval;
+/* time prefix format to strftime() */
+#define LOGTIMFMT	"[%d %b %Y %T] "
 
-	RATTCONF_LIST_FOREACH(&l_conf_module, modname)
-	{
-		retval = module_attach(RATTLOG, *modname);
-		if (retval != OK)
-			debug("module_attach() failed");
-	}
-}
+/* time prefix size, once processed */
+#define LOGTIMSIZ	23
 
-#define LOG_TIMEFMT	"[%d %b %Y %T] "
-#define LOG_TIMESIZ	23
-#define LOG_PREFIX_SIZMAX LOG_TIMESIZ + RATTLOG_LVLSIZMAX
+/* total prefix size, including log level */
+#define LOGPFXSIZ LOGTIMSIZ + RATTLOGLVLSIZ
+
 static void std_print_msg(int level, char const *msg)
 {
 	FILE *out = NULL;
-	char prefix[LOG_PREFIX_SIZMAX] = { '\0' };
+	char prefix[LOGPFXSIZ] = { '\0' };
 	struct tm tmres;
 	time_t now;
 
@@ -121,17 +127,17 @@ static void std_print_msg(int level, char const *msg)
 	/* datetime prefix */
 	if (((now = time(NULL)) != (time_t) -1)
 	    && (localtime_r(&now, &tmres) != NULL))
-		strftime(prefix, LOG_TIMESIZ, LOG_TIMEFMT, &tmres);
+		strftime(prefix, LOGTIMSIZ, LOGTIMFMT, &tmres);
 	/* level name prefix */
-	snprintf(prefix, RATTLOG_LVLSIZMAX, "%s",
-	    rattlog_level_to_name(level));
+	snprintf(prefix + LOGTIMSIZ, RATTLOGLVLSIZ, "%s",
+	    ratt_log_level_to_name(level));
 	/* message */
 	fprintf(out, "%s: %s", prefix, msg);
 }
 
 static void on_msg(int level, char const *msg)
 {
-	rattlog_callback_t *callback = NULL;
+	ratt_log_hook_t *hook = NULL;
 
 	/* honor the verbose level setting */
 	if (level > l_verbose)
@@ -141,19 +147,61 @@ static void on_msg(int level, char const *msg)
 	std_print_msg(level, msg);
 
 	/* registered logger module */
-	RATT_TABLE_FOREACH(&l_calltable, callback)
+	RATT_TABLE_FOREACH(&l_hooktab, hook)
 	{
-		if (callback->on_msg)
-			callback->on_msg(level, msg);
+		if (hook->on_msg)
+			hook->on_msg(level, msg);
 	}
+}
+
+void log_detach(void *udata)
+{
+	RATTLOG_TRACE();
+	module_parent_detach(&l_parent_info);
+	ratt_table_destroy(&l_hooktab);
+}
+
+int log_attach(void)
+{
+	RATTLOG_TRACE();
+	int retval;
+
+	retval = ratt_table_create(&l_hooktab,
+	    LOG_HOOKTABSIZ, sizeof(ratt_log_hook_t), 0);
+	if (retval != OK) {
+		debug("ratt_table_create() failed");
+		return FAIL;
+	} else
+		debug("allocated hook table of size `%u'", LOG_HOOKTABSIZ);
+
+	/* export parent configuration */
+	l_parent_info.config = l_conf;
+
+	retval = module_parent_attach(&l_parent_info, &attach_module);
+	if (retval != OK) {
+		debug("module_parent_attach() failed");
+		ratt_table_destroy(&l_hooktab);
+		return FAIL;
+	}
+
+	/* do not bother with attach success */
+	ratt_module_attach_from_config(RATT_LOG, &l_conf_module);
+
+	retval = dtor_register(log_detach, NULL);
+	if (retval != OK) {
+		debug("dtor_register() failed");
+		module_parent_detach(&l_parent_info);
+		ratt_table_destroy(&l_hooktab);
+		return FAIL;
+	}
+
+	return OK;
 }
 
 void log_fini(void *udata)
 {
 	RATTLOG_TRACE();
-	module_parent_detach(RATTLOG);
-	ratt_table_destroy(&l_calltable);
-	conf_release(l_conftable);
+	conf_release(l_conf);
 }
 
 int log_init(void)
@@ -161,50 +209,25 @@ int log_init(void)
 	RATTLOG_TRACE();
 	int retval, level;
 
-	retval = conf_parse(LOG_CONF_NAME, l_conftable);
+	retval = conf_parse(LOG_CONF_NAME, l_conf);
 	if (retval != OK) {
 		debug("conf_parse() failed");
 		return FAIL;
 	}
 
-	level = rattlog_name_to_level(l_conf_verbose);
-	if (level < RATTLOGMAX) {
-		if (level != l_verbose) {
-			notice("switching to verbose level `%s'",
-			    l_conf_verbose);
-			l_verbose = level;
-		}
-	} else
-		warning("unknown verbose level `%s'", l_conf_verbose);
-
-	retval = ratt_table_create(&l_calltable,
-	    LOG_CALLTABLESIZ, sizeof(rattlog_callback_t), 0);
-	if (retval != OK) {
-		debug("ratt_table_create() failed");
-		conf_release(l_conftable);
+	level = ratt_log_name_to_level(l_conf_verbose);
+	if (level >= RATTLOGMAX) {
+		error("`%s' is not a valid verbose level", l_conf_verbose);
 		return FAIL;
-	} else
-		debug("allocated module callback table of size `%u'",
-		    LOG_CALLTABLESIZ);
-
-	retval = module_parent_attach(RATTLOG, &attach_module);
-	if (retval != OK) {
-		debug("module_parent_attach() failed");
-		ratt_table_destroy(&l_calltable);
-		conf_release(l_conftable);
-		return FAIL;
+	} else if (level != l_verbose) {
+		debug("switching to verbose level `%s'", l_conf_verbose);
+		l_verbose = level;
 	}
-
-	retval = rattmod_attach_from_config(RATTLOG, &l_conf_module);
-	if (retval != OK)
-		debug("no module attached to logger");
 
 	retval = dtor_register(log_fini, NULL);
 	if (retval != OK) {
 		debug("dtor_register() failed");
-		module_parent_detach(RATTLOG);
-		ratt_table_destroy(&l_calltable);
-		conf_release(l_conftable);
+		conf_release(l_conf);
 		return FAIL;
 	}
 
@@ -212,23 +235,22 @@ int log_init(void)
 }
 
 /**
- * \fn void rattlog_msg(int level, const char *fmt, ...)
+ * \fn void ratt_log_msg(int level, const char *fmt, ...)
  * \brief log a message
  *
- * Send a message to attached loggers
+ * Log a message with verbose level information.
  *
  * \param level		the verbose level this message belongs to
  * \param fmt		printf-style format string
  * \param ...		additional params to match format string
- *
  */
-void rattlog_msg(int level, const char *fmt, ...)
+void ratt_log_msg(int level, const char *fmt, ...)
 {
 	va_list ap;
-	char msg[RATTLOG_MSGSIZMAX] = { '\0' };
+	char msg[RATTLOGMSGSIZ] = { '\0' };
 
 	va_start(ap, fmt);
-	vsnprintf(msg, RATTLOG_MSGSIZMAX, fmt, ap);
+	vsnprintf(msg, RATTLOGMSGSIZ, fmt, ap);
 	va_end(ap);
 
 	on_msg(level, msg);

@@ -4,7 +4,13 @@
 
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = tests src modules
+SUBDIRS = $(want_tests) src modules
+
+if WANT_TESTS
+want_tests = tests
+else
+want_tests =
+endif
 
 rattle_includedir = $(includedir)/rattle
 rattle_include_HEADERS = \

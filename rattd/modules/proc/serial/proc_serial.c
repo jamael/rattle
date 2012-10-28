@@ -37,7 +37,7 @@
 #include <rattle/proc.h>
 #include <rattle/table.h>
 
-#define MODULE_NAME	RATTPROC "_serial"
+#define MODULE_NAME	RATT_PROC "_serial"
 #define MODULE_DESC	"serial processor"
 #define MODULE_VERSION	"0.1"
 
@@ -51,6 +51,10 @@ typedef struct {
 	int (*process)(void *);		/* process pointer */
 	uint32_t flags;			/* process flags */
 	void *udata;			/* process user data */
+
+	/* internal state */
+
+	uint32_t failure;		/* process failure count */
 } proc_register_t;
 
 /* process table initial size */
@@ -84,9 +88,9 @@ static int on_register(int (*process)(void *), uint32_t flags, void *udata)
 	proc_register_t proc = { process, flags, udata };
 	int retval;
 
-	retval = ratt_table_push(&l_proctable, &proc);
+	retval = ratt_table_insert(&l_proctable, &proc);
 	if (retval != OK) {
-		debug("ratt_table_push() failed");
+		debug("ratt_table_insert() failed");
 		return FAIL;
 	}
 
@@ -99,6 +103,7 @@ static int on_register(int (*process)(void *), uint32_t flags, void *udata)
 static int on_start(void)
 {
 	proc_register_t *proc = NULL;
+	int retval;
 
 	if (l_proc_state == PROC_STATE_RUN) {
 		debug("processor is running already");
@@ -110,8 +115,18 @@ static int on_start(void)
 	do {
 		RATT_TABLE_FOREACH(&l_proctable, proc)
 		{
-			if (proc->process)
-				proc->process(proc->udata);
+			if (proc->process) {
+				retval = proc->process(proc->udata);
+				if (retval != OK) {
+					debug("process at %p failed",
+					    proc->process);
+					proc->failure++;
+				}
+			} else {	/* trash ghost process */
+				debug("ghost process registered on slot %u",
+				    ratt_table_pos_current(&l_proctable));
+				ratt_table_del_current(&l_proctable);
+			}
 		}
 
 	} while (l_proc_state == PROC_STATE_RUN);
@@ -137,7 +152,7 @@ static void on_interrupt(int signum, siginfo_t const *siginfo, void *udata)
 	on_stop();
 }
 
-static rattproc_callback_t callbacks = {
+static ratt_proc_hook_t proc_serial_hook = {
 	.on_start = &on_start,
 	.on_stop = &on_stop,
 	.on_interrupt = &on_interrupt,
@@ -145,13 +160,13 @@ static rattproc_callback_t callbacks = {
 	.on_register = &on_register,
 };
 
-static rattmod_entry_t module_entry = {
+static ratt_module_entry_t module_entry = {
 	.name = MODULE_NAME,
 	.desc = MODULE_DESC,
 	.version = MODULE_VERSION,
-	.callbacks = &callbacks,
+//	.callbacks = &callbacks,
 };
-
+#if 0
 void __attribute__ ((destructor)) proc_serial_fini(void)
 {
 	RATTLOG_TRACE();
@@ -179,3 +194,4 @@ void __attribute__ ((constructor)) proc_serial_init(void)
 		ratt_table_destroy(&l_proctable);
 	}
 }
+#endif

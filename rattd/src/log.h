@@ -3,5 +3,6 @@
 
 void log_fini(void *);
 int log_init(void);
+int log_attach(void);
 
 #endif /* SRC_LOG_H */

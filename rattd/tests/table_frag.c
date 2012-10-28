@@ -26,7 +26,9 @@
  */
 
 
+#ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
 
 #include <rattle/def.h>
 #include <rattle/log.h>
@@ -134,7 +136,7 @@ static void on_summary(void const *udata)
 	    data->count, data->frags);
 }
 
-static ratt_test_callback_t test_callbacks = {
+static ratt_test_hook_t test_table_frag_hook = {
 	.on_register = &on_register,
 	.on_unregister = &on_unregister,
 	.on_run = &on_run,
@@ -142,19 +144,19 @@ static ratt_test_callback_t test_callbacks = {
 	.on_summary = &on_summary,
 };
 
-static rattmod_entry_t module_entry = {
+static void *attach_hook(ratt_module_parent_t const *parinfo)
+{
+	return &test_table_frag_hook;
+}
+
+static ratt_module_entry_t module_entry = {
 	.name = MODULE_NAME,
 	.desc = MODULE_DESC,
 	.version = MODULE_VERSION,
-	.callbacks = &test_callbacks
+	.attach = &attach_hook,
 };
-
-void __attribute__ ((destructor)) __tests_table_frag_fini(void)
-{
-	rattmod_unregister(&module_entry);
-}
 
 void __tests_table_frag(void)
 {
-	rattmod_register(&module_entry);
+	ratt_module_register(&module_entry);
 }

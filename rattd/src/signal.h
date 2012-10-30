@@ -5,7 +5,8 @@
 
 void signal_fini(void *);
 int signal_init(void);
-void signal_unregister(void (*)(int, siginfo_t const *, void *));
+void signal_unregister(int, void (*)(int, siginfo_t const *, void *));
 int signal_register(int, void (*)(int, siginfo_t const *, void *), void *);
+void signal_wait(void);
 
 #endif /* SRC_SIGNAL_H */

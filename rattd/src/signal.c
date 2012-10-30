@@ -40,8 +40,8 @@
 
 #define signum_to_string(n) sys_siglist[(n)]
 
-static void handle_signal(int, siginfo_t *, void *);
-struct sigaction l_sigaction = { .sa_sigaction = &handle_signal };
+/* mask of handled signals */
+static sigset_t l_wait_sigmask;
 
 /* signal table initial size */
 #ifndef SIGNAL_TABLESIZ
@@ -90,16 +90,23 @@ static void handle_signal(int signum, siginfo_t *siginfo, void *unused)
 		if (entry->handler)
 			entry->handler(signum, siginfo, entry->udata);
 	}
+	return;
 }
 
 static void unregister_signal_all()
 {
 	signal_register_t *sig = NULL;
+	signal_entry_t *entry = NULL;
 
+	sigemptyset(&l_wait_sigmask);
 	RATT_TABLE_FOREACH(&l_sigtable, sig)
 	{
+		RATT_TABLE_FOREACH(&(sig->entry), entry)
+		{
+			debug("`%s' stack is not empty with %p still around",
+			    signum_to_string(sig->num), entry->handler);
+		}
 		ratt_table_destroy(&(sig->entry));
-		signal(sig->num, SIG_DFL);
 	}
 }
 
@@ -111,7 +118,8 @@ static void unregister_signal(int signum)
 	{
 		if (sig->num == signum) {
 			ratt_table_destroy(&(sig->entry));
-			signal(sig->num, SIG_DFL);
+			sigdelset(&l_wait_sigmask, signum);
+			ratt_table_del_current(&l_sigtable);
 		}
 	}
 }
@@ -139,7 +147,7 @@ static int register_signal(int signum)
 			return FAIL;
 		}
 
-		sigaction(signum, &l_sigaction, NULL);
+		sigaddset(&l_wait_sigmask, signum);
 
 		debug("registered `%s' signal number %i, slot %i",
 		    signum_to_string(signum), signum,
@@ -152,22 +160,28 @@ static int register_signal(int signum)
 	return FAIL;
 }
 
-void signal_unregister(void (*handler)(int, siginfo_t const *, void *))
+void signal_unregister(int signum,
+                       void (*handler)(int, siginfo_t const *, void *))
 {
 	RATTLOG_TRACE();
 	signal_register_t *sig = NULL;
 	signal_entry_t *entry = NULL;
+	int retval;
 
-	RATT_TABLE_FOREACH(&l_sigtable, sig)
+	retval = ratt_table_search(&l_sigtable, (void **) &sig,
+	    &signum_compare, &signum);
+	if (retval != OK) { /* signal not registered */
+		debug("ratt_table_search() failed");
+		return;
+	}
+
+	RATT_TABLE_FOREACH(&(sig->entry), entry)
 	{
-		RATT_TABLE_FOREACH(&(sig->entry), entry)
-		{
-			if (entry->handler == handler) {
-				ratt_table_del_current(&(sig->entry));
-				if (ratt_table_isempty(&(sig->entry)))
-					unregister_signal(sig->num);
-				break;
-			}
+		if (entry->handler == handler) {
+			ratt_table_del_current(&(sig->entry));
+			if (ratt_table_isempty(&(sig->entry)))
+				unregister_signal(sig->num);
+			break;
 		}
 	}
 }
@@ -213,6 +227,13 @@ int signal_register(int signum,
 	return OK;
 }
 
+void signal_wait(void)
+{
+	siginfo_t siginfo;
+	sigwaitinfo(&l_wait_sigmask, &siginfo);
+	handle_signal(siginfo.si_signo, &siginfo, NULL);
+}
+
 void signal_fini(void *udata)
 {
 	RATTLOG_TRACE();
@@ -223,7 +244,12 @@ void signal_fini(void *udata)
 int signal_init(void)
 {
 	RATTLOG_TRACE();
+	sigset_t blockmask, unused;
 	int retval;
+
+	/* all signals blocked */
+	sigfillset(&blockmask);
+	sigprocmask(SIG_BLOCK, &blockmask, &unused);
 	
 	retval = ratt_table_create(&l_sigtable,
 	    SIGNAL_TABLESIZ, sizeof(signal_register_t), 0);
@@ -234,8 +260,8 @@ int signal_init(void)
 		debug("allocated signal table of size `%u'",
 		    SIGNAL_TABLESIZ);
 
-	/* initialize signal mask */
-	sigemptyset(&l_sigaction.sa_mask);
+	/* initialize signal mask to wait for */
+	sigemptyset(&l_wait_sigmask);
 
 	return OK;
 }

@@ -63,8 +63,30 @@ extern int test_main(int, char * const *);
 /* program arguments */
 static unsigned int l_args = 0;
 
+/* program state */
+typedef enum {
+	MAIN_STATE_BOOT = 0,	/* program is booting */
+	MAIN_STATE_RUN,		/* program is up */
+	MAIN_STATE_STOP		/* program shutdown */
+} main_state_t;
+
+static main_state_t l_state = MAIN_STATE_BOOT;
+
 /* configuration file path */
 static char l_conffile[PATH_MAX] = { '\0' };
+
+static inline void set_state(main_state_t state)
+{
+	main_state_t old;
+	old = l_state;
+	l_state = state;
+	debug("program state changed from %u to %u", old, state);
+}
+
+static inline main_state_t get_state(void)
+{
+	return l_state;
+}
 
 static int parse_argv_opts(int argc, char * const argv[])
 {
@@ -126,12 +148,16 @@ static void show_startup_notice()
 "ARE DISCLAIMED.\n\n", VERSION);
 }
 
+static void on_interrupt(int signum, siginfo_t const *siginfo, void *udata)
+{
+	set_state(MAIN_STATE_STOP);
+}
+
 static void fini(void)
 {
 	RATTLOG_TRACE();
-
-	/* callback registered destructor */
 	dtor_callback();
+	signal_unregister(SIGINT, &on_interrupt);
 	signal_fini(NULL);
 	debug("finished");
 }
@@ -163,7 +189,8 @@ int main(int argc, char * const argv[])
 	if (signal_init() != OK) {
 		debug("signal_init() failed");
 		exit(1);
-	}
+	} else
+		signal_register(SIGINT, &on_interrupt, NULL);
 
 	/* initialize global destructor register */
 	if (dtor_init() != OK) {
@@ -228,8 +255,21 @@ int main(int argc, char * const argv[])
 	/* release config file */
 	conf_close();
 
-	/* processor */
-	proc_start();
+	/* start processor */
+	if (proc_start() != OK) {
+		debug("proc_start() failed");
+		exit(1);
+	}
+
+	/* program is up */
+	set_state(MAIN_STATE_RUN);
+
+	/* wait for signals */
+	do {
+		signal_wait();
+
+	} while (get_state() == MAIN_STATE_RUN);
+
 
 	return 0;
 }

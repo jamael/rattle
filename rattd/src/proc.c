@@ -185,7 +185,7 @@ int proc_attach(void)
 void proc_fini(void *udata)
 {
 	RATTLOG_TRACE();
-	signal_unregister(&on_interrupt);
+	signal_unregister(SIGINT, &on_interrupt);
 	conf_release(l_conf);
 }
 
@@ -209,7 +209,7 @@ int proc_init(void)
 	retval = dtor_register(proc_fini, NULL);
 	if (retval != OK) {
 		debug("dtor_register() failed");
-		signal_unregister(&on_interrupt);
+		signal_unregister(SIGINT, &on_interrupt);
 		conf_release(l_conf);
 		return FAIL;
 	}

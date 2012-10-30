@@ -94,12 +94,17 @@ static int register_module_handle(void *handle)
 
 static int unload_modules()
 {
+	void *handle = NULL;
 	ratt_module_entry_t *entry = NULL;
 
 	RATT_TABLE_FOREACH(&l_modtab, entry)
 	{
-		if (entry->handle)
-			dlclose(entry->handle);
+		handle = entry->handle;
+		ratt_module_unregister(entry);
+		if (handle) {/* external module */
+			dlclose(handle);
+			handle = NULL;
+		}
 	}
 
 	return OK;
@@ -200,8 +205,12 @@ static int attach_module(char const *parname, char const *modname)
 	}
 
 	debug("attaching module `%s' to `%s'", modname, parname);
-	parent->attach(module);
-	module->parinfo = parent->info;
+	retval = parent->attach(module);
+	if (retval != OK) {
+		debug("parent->attach() failed");
+		return FAIL;
+	} else
+		module->parinfo = parent->info;
 
 	return OK;
 }
@@ -460,6 +469,8 @@ int ratt_module_unregister(ratt_module_entry_t const *entry)
 	RATTLOG_TRACE();
 	int retval;
 
+	debug("unloading module `%s'", entry->name);
+
 	if (entry->destructor)
 		entry->destructor();
 
@@ -476,8 +487,6 @@ int ratt_module_unregister(ratt_module_entry_t const *entry)
 			return FAIL;
 		}
 	}
-
-	debug("unloaded module `%s'", entry->name);
 
 	return OK;
 }

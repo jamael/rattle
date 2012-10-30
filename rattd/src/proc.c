@@ -71,6 +71,7 @@ static ratt_module_parent_t l_parent_info = {
 static int attach_module(ratt_module_entry_t *entry)
 {
 	ratt_proc_hook_t *hook = NULL;
+	int retval;
 
 	/* cannot attach multiple processor */
 	if (l_proc_module) {
@@ -79,6 +80,16 @@ static int attach_module(ratt_module_entry_t *entry)
 		return FAIL;
 	}
 
+	/* first, module may need to check its configuration */
+	if (entry->config) {
+		retval = conf_parse(PROC_CONF_NAME, entry->config);
+		if (retval != OK) {
+			debug("conf_parse() failed for `%s'", entry->name);
+			return FAIL;
+		}
+	}
+
+	/* second, let the module decide wheter it attaches or not */
 	hook = entry->attach(&l_parent_info);
 	if (!hook) {
 		debug("`%s' chose not to attach", entry->name);

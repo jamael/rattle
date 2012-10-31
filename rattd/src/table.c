@@ -38,37 +38,6 @@
 #include <rattle/log.h>
 #include <rattle/table.h>
 
-/*
- * The following macro defines the bit flag mathematics
- * used to compute the table->frag_mask member which is laid out
- * on a dynamically allocated array of 8bits slot.
- *
- * A frag_mask bit toggled on means there is fragmentation at
- * the corresponding table->pos which is zero-based.
- *
- * frag_mask_size macro gives the size of a (x) flags array
- * fsbset() macro finds the first significant bit set in the slot
- * shift_mask() macro computes the bit flags position in the slot
- * shift_mask_slot() macro computes the slot position in the array
- *
- * Note: fsbset() uses ffs() to take advantages of hardware support
- *       for find first bit set operation *but* ffs() is one-based.
- *       Thus, fsbset() substracts one so that results are zero-based.
- *
- *       Care must be taken to verify that bits are set before using
- *       fsbset() as ffs() uses return value of 0 to indicate that
- *       no bit is set.
- */
-#define frag_mask_size(x) ((1 + ((x) / 8)) * sizeof(uint8_t))
-#define fsbset(x) (ffs((x)) - 1)
-#define shift_mask(pos) (1 << ((pos) & 7))
-#define shift_mask_slot(head, pos)			\
-	do {						\
-		if ((head)) {				\
-			(head) += (pos) / 8;		\
-		}					\
-	} while (0)
-
 static inline int is_frag(uint8_t const *slot, size_t pos)
 {
 	shift_mask_slot(slot, pos);
@@ -152,10 +121,11 @@ static int realloc_and_move(ratt_table_t *table)
 	if (table->head != head) {	/* realloc moved it, recompute */
 		debug("head is now at %p, was %p", head, table->head);
 		table->head = head;
-		table->tail = head + (table->last * table->chunk_size);
+		table->tail = (char *) head
+		    + (table->last * table->chunk_size);
 	}
 
-	memset(table->tail + table->chunk_size, 0,
+	memset((char *) table->tail + table->chunk_size, 0,
 	    (newsiz - table->size) * table->chunk_size);
 	table->size = newsiz;
 
@@ -231,7 +201,7 @@ int ratt_table_del_current(ratt_table_t *table)
 	/* if chunk is the tail, move the tail back */
 	if (ratt_table_istail(table, chunk)
 	    && !ratt_table_ishead(table, chunk)) {
-		table->tail = chunk - table->chunk_size;
+		table->tail = (char *) chunk - table->chunk_size;
 		table->pos = --table->last;
 		debug("moved tail back to %p", table->tail);
 	} else	/* handle fragmentation */
@@ -270,7 +240,7 @@ int ratt_table_get_tail_next(ratt_table_t *table, void **tail)
 	}
 
 	if (!ratt_table_isempty(table)) { /* table is not empty */
-		next = table->tail + table->chunk_size;
+		next = (char *) table->tail + table->chunk_size;
 		table->pos = ++(table->last);	/* push resets position */
 	} else
 		next = table->head;

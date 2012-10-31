@@ -2,6 +2,7 @@
 #define RATTLE_TABLE_H
 
 #include <stdint.h>
+#include <string.h>	/* ffs() */
 #include <rattle/def.h>
 
 #define RATTTABFLXIS	0x1	/* table exists */
@@ -17,6 +18,37 @@
 #ifndef RATTTABMAXSIZ
 #define RATTTABMAXSIZ		SIZE_MAX - 1
 #endif
+
+/*
+ * The following macro defines the bit flag mathematics
+ * used to compute the table->frag_mask member which is laid out
+ * on a dynamically allocated array of 8bits slot.
+ *
+ * A frag_mask bit toggled on means there is fragmentation at
+ * the corresponding table->pos which is zero-based.
+ *
+ * frag_mask_size macro gives the size of a (x) flags array
+ * fsbset() macro finds the first significant bit set in the slot
+ * shift_mask() macro computes the bit flags position in the slot
+ * shift_mask_slot() macro computes the slot position in the array
+ *
+ * Note: fsbset() uses ffs() to take advantages of hardware support
+ *       for find first bit set operation *but* ffs() is one-based.
+ *       Thus, fsbset() substracts one so that results are zero-based.
+ *
+ *       Care must be taken to verify that bits are set before using
+ *       fsbset() as ffs() uses return value of 0 to indicate that
+ *       no bit is set.
+ */
+#define frag_mask_size(x) ((1 + ((x) / 8)) * sizeof(uint8_t))
+#define fsbset(x) (ffs((x)) - 1)
+#define shift_mask(pos) (1 << ((pos) & 7))
+#define shift_mask_slot(head, pos)			\
+	do {						\
+		if ((head)) {				\
+			(head) += (pos) / 8;		\
+		}					\
+	} while (0)
 
 typedef struct {
 	void *head, *tail;	/* head and tail of table */
@@ -64,6 +96,16 @@ static inline int ratt_table_isempty(ratt_table_t *table)
 	return ((!ratt_table_exists(table)) || !table->chunk_count);
 }
 
+static inline int ratt_table_pos_isfrag(ratt_table_t *table, size_t pos)
+{
+	uint8_t const *slot = table->frag_mask;
+	if (!ratt_table_isempty(table)
+	    && pos <= table->last)
+		shift_mask_slot(slot, pos);
+		return (*slot & shift_mask(pos));
+	return 0;
+}
+
 static inline int ratt_table_ishead(ratt_table_t *table, void *chunk)
 {
 	return (ratt_table_exists(table) && (chunk == table->head));
@@ -99,33 +141,102 @@ static inline void *ratt_table_get_last(ratt_table_t *table)
 	return NULL;
 }
 
-static inline void *ratt_table_get_next(ratt_table_t *table)
+static inline void *ratt_table_get_prev(ratt_table_t *table)
 {
-	if (!ratt_table_isempty(table)
-	    && (table->pos + 1) <= table->last) {
-		table->pos++;
-		return table->head + (table->pos * table->chunk_size);
+	if (!ratt_table_isempty(table)) {
+		while (table->pos) {
+			table->pos--;
+
+			if (ratt_table_isfrag(table)
+			    && ratt_table_pos_isfrag(table, table->pos))
+				continue;
+
+			return (char *) table->head
+			    + (table->pos * table->chunk_size);
+		}
 	}
 
 	return NULL;
+}
+
+static inline void *ratt_table_get_next(ratt_table_t *table)
+{
+	if (!ratt_table_isempty(table)) {
+		while ((table->pos + 1) <= table->last) {
+
+			table->pos++;
+
+			if (ratt_table_isfrag(table)
+			    && ratt_table_pos_isfrag(table, table->pos))
+				continue;
+
+			return (char *) table->head
+			    + (table->pos * table->chunk_size);
+		}
+	}
+
+	return NULL;
+}
+
+static inline void *ratt_table_get_first_next(ratt_table_t *table)
+{
+	void *chunk = NULL;
+	if ((chunk = ratt_table_get_first(table)) != NULL) {
+		if (!ratt_table_isfrag(table)
+		    || !ratt_table_pos_isfrag(table, table->pos))
+			return chunk;
+	}
+
+	return ratt_table_get_next(table);
+}
+
+
+static inline void *ratt_table_get_circular_next(ratt_table_t *table)
+{
+	void *chunk = NULL;
+	if ((chunk = ratt_table_get_next(table)) != NULL) {
+		return chunk;
+	}
+
+	return ratt_table_get_first_next(table);
 }
 
 static inline void *ratt_table_get_current(ratt_table_t *table)
 {
 	if (!ratt_table_isempty(table)
 	    && table->pos <= table->last) {
-		return table->head + (table->pos * table->chunk_size);
+		return (char *) table->head
+		    + (table->pos * table->chunk_size);
+	}
+	return NULL;
+}
+
+static inline void *ratt_table_get(ratt_table_t *table, size_t pos)
+{
+	if (!ratt_table_isempty(table)
+	    && pos <= table->last) {
+		table->pos = pos;
+		return (char *) table->head
+		    + (table->pos * table->chunk_size);
 	}
 
 	return NULL;
 }
 
 #define RATT_TABLE_FOREACH(tab, chunk) \
+	for ((chunk) = ratt_table_get_first_next((tab)); \
+	    (chunk) != NULL; (chunk) = ratt_table_get_next((tab)))
+
+#define RATT_TABLE_FOREACH_REVERSE(tab, chunk) \
+	for ((chunk) = ratt_table_get_last((tab)); \
+	    (chunk) != NULL; (chunk) = ratt_table_get_prev((tab)))
+
+#define RATT_TABLE_FOREACH_XXX(tab, chunk) \
 	for ((chunk) = (tab)->head, (tab)->pos = 0; \
 	    (!ratt_table_isempty((tab)) && (void *) (chunk) <= (tab)->tail); \
 	    ((tab)->pos)++, (chunk) = (void *) (chunk) + (tab)->chunk_size)
 
-#define RATT_TABLE_FOREACH_REVERSE(tab, chunk) \
+#define RATT_TABLE_FOREACH_REVERSE_XXX(tab, chunk) \
 	for ((chunk) = (tab)->tail, (tab)->pos = (tab)->last; \
 	    (!ratt_table_isempty((tab)) && (void *) (chunk) >= (tab)->head); \
 	    ((tab)->pos)--, (chunk) = (void *) (chunk) - (tab)->chunk_size)

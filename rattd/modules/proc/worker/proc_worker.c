@@ -113,7 +113,6 @@ typedef struct {
 	/* not locked */
 
 	sigset_t sigblockmask;		/* blocked signals */
-	int retval;			/* worker return value */
 } worker_register_t;
 
 typedef struct {

@@ -8,8 +8,7 @@ AC_CONFIG_MACRO_DIR([m4])
 
 AC_CONFIG_FILES([Makefile
 		modules/Makefile
-		src/Makefile
-		tests/Makefile])
+		include/Makefile])
 
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
@@ -55,8 +54,10 @@ AC_ARG_ENABLE([test-mode],
 	[AS_HELP_STRING([--enable-test-mode],
 		[enable benchmark and various tests])])
 AS_IF([test "x$enable_test_mode" == "xyes"],
-	[AC_DEFINE([WANT_TESTS], [1],
+	[AC_DEFINE([WANT_TEST], [1],
 		[Define if you want test mode])])
-AM_CONDITIONAL([WANT_TESTS], [test "x$enable_test_mode" != "xno"])
+AM_CONDITIONAL([WANT_TEST], [test "x$enable_test_mode" != "xno"])
+
+AC_DEFINE([WANT_THREADS], [1], [threads])
 
 m4_include([m4/rattle.m4])

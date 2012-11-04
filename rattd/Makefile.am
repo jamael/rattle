@@ -2,21 +2,35 @@
 # Makefile.am
 #
 
+SUBDIRS = modules include
+
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = $(want_tests) src modules
+#
+# Automake defines DEFAULT_INCLUDES to look into -I. for header files.
+# However, that prevents picking up the desired system header if a local
+# header of the same name exists in the source.
+#
+# #include <foo.h> and #include "foo.h" exists for that specific purpose.
+#
+DEFAULT_INCLUDES = -I. -Iinclude
 
-if WANT_TESTS
-want_tests = tests
-else
-want_tests =
-endif
+sbin_PROGRAMS = rattd
+rattd_SOURCES = \
+	src/rattd.c \
+	src/conf.c \
+	src/main.c \
+	src/dtor.c \
+	src/log.c \
+	src/module.c \
+	src/table.c \
+	src/proc.c \
+	src/signal.c \
+	src/test.c
 
-rattle_includedir = $(includedir)/rattle
-rattle_include_HEADERS = \
-	include/rattle/conf.h \
-	include/rattle/def.h \
-	include/rattle/log.h \
-	include/rattle/module.h \
-	include/rattle/proc.h \
-	include/rattle/table.h
+rattd_LDFLAGS = @libconfig_LIBS@ @LIBADD_DLOPEN@ -rdynamic
+
+#if WANT_TEST
+#rattd_SOURCES += src/test.c
+#rattd_LDFLAGS += -Wl,--whole-archive,../tests/libtests.a,--no-whole-archive
+#endif

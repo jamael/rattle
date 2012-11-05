@@ -79,13 +79,18 @@ static inline int frag_mask_unset(uint8_t *slot, size_t pos, size_t *cnt)
 static inline int write_chunk(ratt_table_t *table, void const *src,
                               int (*getdst)(ratt_table_t *, void **))
 {
-	RATTLOG_TRACE();
 	void *dst = NULL;
 	int retval;
 
 	if (!getdst) {
 		debug("getdst is NULL, using get_tail_next");
 		getdst = ratt_table_get_tail_next;
+	}
+
+	retval = ratt_table_satisfy_constrains(table, src);
+	if (retval != OK) {
+		debug("ratt_table_satisfy_constrains() failed");
+		return FAIL;
 	}
 
 	retval = getdst(table, &dst);
@@ -176,6 +181,20 @@ int ratt_table_search(ratt_table_t *table, void **retchunk,
 				return OK;
 			}
 		}
+
+	return FAIL;
+}
+
+int ratt_table_satisfy_constrains(ratt_table_t *table, void const *chunk)
+{
+	void *match = NULL;
+
+	if (!table->constrains)	/* table has no constrain */
+		return OK;
+
+	ratt_table_search(table, &match, table->constrains, chunk);
+	if (!match)	/* constrains did not match */
+		return OK;
 
 	return FAIL;
 }

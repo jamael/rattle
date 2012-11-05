@@ -61,6 +61,9 @@ typedef struct {
 	uint8_t *frag_mask;	/* fragment mask */
 
 	int flags;		/* table flags */
+
+	/* constrains callback */
+	int (*constrains)(void const *, void const *);
 } ratt_table_t;
 
 static inline size_t ratt_table_size(ratt_table_t *table)
@@ -225,6 +228,13 @@ static inline void *ratt_table_chunk(ratt_table_t *table, size_t pos)
 	return NULL;
 }
 
+static inline
+void ratt_table_set_constrains(ratt_table_t *table,
+                               int (*constrains)(void const *, void const *))
+{
+	table->constrains = constrains;
+}
+
 #define RATT_TABLE_FOREACH(tab, chunk) \
 	for ((chunk) = ratt_table_first_next((tab)); \
 	    (chunk) != NULL; (chunk) = ratt_table_next((tab)))
@@ -245,5 +255,6 @@ extern int ratt_table_get_tail_next(ratt_table_t *, void **);
 extern int ratt_table_get_frag_first(ratt_table_t *, void **);
 extern int ratt_table_del_current(ratt_table_t *);
 extern int ratt_table_set_pos_frag_first(ratt_table_t *);
+extern int ratt_table_satisfy_constrains(ratt_table_t *, void const *);
 
 #endif /* RATTLE_TABLE_H */

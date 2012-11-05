@@ -203,7 +203,7 @@ int signal_register(int signum,
 			debug("register_signal() failed");
 			return FAIL;
 		}
-		sig = ratt_table_get_current(&l_sigtable);
+		sig = ratt_table_current(&l_sigtable);
 	} else
 		RATT_TABLE_FOREACH(&(sig->entry), entry)
 		{

@@ -76,6 +76,36 @@ static inline int frag_mask_unset(uint8_t *slot, size_t pos, size_t *cnt)
 	return OK;
 }
 
+static inline int write_chunk(ratt_table_t *table, void const *src,
+                              int (*getdst)(ratt_table_t *, void **))
+{
+	void *dst = NULL;
+	int retval;
+
+	if (!getdst) {
+		debug("getdst is NULL, using get_tail_next");
+		getdst = ratt_table_get_tail_next;
+	}
+
+	retval = ratt_table_satisfy_constrains(table, src);
+	if (retval != OK) {
+		debug("ratt_table_satisfy_constrains() failed");
+		return FAIL;
+	}
+
+	retval = getdst(table, &dst);
+	if (retval != OK) {
+		debug("getdst() failed");
+		return FAIL;
+	}
+
+	memcpy(dst, src, table->chunk_size);
+
+	debug("chunk at %p written to %p, slot %u", src, dst,
+	    ratt_table_pos_current(table));
+	return OK;
+}
+
 static int realloc_and_move(ratt_table_t *table)
 {
 	void *head = NULL;
@@ -139,7 +169,7 @@ int ratt_table_search(ratt_table_t *table, void **retchunk,
 	RATTLOG_TRACE();
 	void *chunk = NULL;
 
-	chunk = ratt_table_get_current(table);
+	chunk = ratt_table_current(table);
 	if (chunk && (comp(chunk, compdata) == OK)) {
 		*retchunk = chunk;
 		return OK;
@@ -155,13 +185,27 @@ int ratt_table_search(ratt_table_t *table, void **retchunk,
 	return FAIL;
 }
 
+int ratt_table_satisfy_constrains(ratt_table_t *table, void const *chunk)
+{
+	void *match = NULL;
+
+	if (!table->constrains)	/* table has no constrain */
+		return OK;
+
+	ratt_table_search(table, &match, table->constrains, chunk);
+	if (!match)	/* constrains did not match */
+		return OK;
+
+	return FAIL;
+}
+
 int ratt_table_set_pos_frag_first(ratt_table_t *table)
 {
 	RATTLOG_TRACE();
 	uint8_t *slot, *slot_last = table->frag_mask;
 	size_t i, pos = 0;
 
-	if (!ratt_table_isfrag(table)) {
+	if (!ratt_table_fragmented(table)) {
 		debug("table is not fragmented");
 		return FAIL;
 	}
@@ -185,9 +229,9 @@ int ratt_table_del_current(ratt_table_t *table)
 	RATTLOG_TRACE();
 	void *chunk = NULL;
 
-	chunk = ratt_table_get_current(table);
+	chunk = ratt_table_current(table);
 	if (!chunk) {
-		debug("ratt_table_get_current() failed");
+		debug("ratt_table_current() failed");
 		return FAIL;
 	} else if (is_frag(table->frag_mask, table->pos)) {
 		debug("chunk at %p already freed", chunk);
@@ -206,7 +250,7 @@ int ratt_table_del_current(ratt_table_t *table)
 		debug("moved tail back to %p", table->tail);
 	} else	/* handle fragmentation */
 		frag_mask_set(table->frag_mask,
-		    table->pos, &(table->chunk_frag));
+		    table->pos, &(table->frag_count));
 
 	return OK;
 }
@@ -256,10 +300,8 @@ int ratt_table_get_frag_first(ratt_table_t *table, void **next)
 	RATTLOG_TRACE();
 	int retval;
 
-	if (!ratt_table_isfrag(table)) /* table is not fragmented */
-		return ratt_table_get_tail_next(table, next);
-
-	if (table->flags & RATTTABFLNRU) /* forbid fragment reuse */
+	if ((!ratt_table_fragmented(table))	/* table not fragmented */
+	    || (table->flags & RATTTABFLNRU))	/* forbid fragment reuse */
 		return ratt_table_get_tail_next(table, next);
 
 	retval = ratt_table_set_pos_frag_first(table);
@@ -268,14 +310,14 @@ int ratt_table_get_frag_first(ratt_table_t *table, void **next)
 		return FAIL;
 	}
 
-	*next = ratt_table_get_current(table);
+	*next = ratt_table_current(table);
 	if (!(*next)) {
-		debug("ratt_table_get_current() failed");
+		debug("ratt_table_current() failed");
 		return FAIL;
 	}
 
 	retval = frag_mask_unset(table->frag_mask,
-	    table->pos, &(table->chunk_frag));
+	    table->pos, &(table->frag_count));
 	if (retval != OK) {
 		debug("frag_mask_unset() failed");
 		return FAIL;
@@ -289,40 +331,13 @@ int ratt_table_get_frag_first(ratt_table_t *table, void **next)
 int ratt_table_push(ratt_table_t *table, void const *chunk)
 {
 	RATTLOG_TRACE();
-	void *tail = NULL;
-	int retval;
-
-	retval = ratt_table_get_tail_next(table, &tail);
-	if (retval != OK) {
-		debug("ratt_table_get_tail_next() failed");
-		return FAIL;
-	}
-
-	memcpy(tail, chunk, table->chunk_size);
-
-	debug("pushed new chunk at %p, slot %u", tail,
-	    ratt_table_pos_current(table));
-	return OK;
+	return write_chunk(table, chunk, ratt_table_get_tail_next);
 }
 
 int ratt_table_insert(ratt_table_t *table, void const *chunk)
 {
 	RATTLOG_TRACE();
-	void *next = NULL;
-	int retval;
-
-	retval = ratt_table_get_frag_first(table, &next);
-	if (retval != OK) {
-		debug("ratt_table_get_frag_first() failed");
-		return FAIL;
-	}
-
-	memcpy(next, chunk, table->chunk_size);
-
-	debug("inserted new chunk at %p, slot %u", next,
-	    ratt_table_pos_current(table));
-
-	return OK;
+	return write_chunk(table, chunk, ratt_table_get_frag_first);
 }
 
 int ratt_table_destroy(ratt_table_t *table)

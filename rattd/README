@@ -8,7 +8,7 @@ REQUIREMENTS
 You will need the following libraries and header files installed on
 your system to get rattd compiled from source.
 
-	libconfig version 1.3 or newer;
+	libconfig version 1.4.5 or newer;
 	pkg-config
 
 

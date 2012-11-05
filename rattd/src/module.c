@@ -83,7 +83,7 @@ static int register_module_handle(void *handle)
 {
 	ratt_module_entry_t *entry = NULL;
 
-	entry = ratt_table_get_last(&l_modtab);
+	entry = ratt_table_last(&l_modtab);
 	if (entry && (entry->handle == NULL)) {
 		entry->handle = handle;
 		return OK;

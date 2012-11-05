@@ -35,8 +35,8 @@ AC_TYPE_UINT8_T
 LT_LIB_DLLOAD
 
 # Use libconfig for configuration file syntax
-PKG_CHECK_MODULES([libconfig], [libconfig >= 1.3],,
-  AC_MSG_ERROR([libconfig 1.3 or newer not found.])
+PKG_CHECK_MODULES([libconfig], [libconfig >= 1.4.5],,
+  AC_MSG_ERROR([libconfig 1.4.5 or newer not found.])
 )
 AC_SUBST(libconfig_CFLAGS)
 AC_SUBST(libconfig_LIBS)

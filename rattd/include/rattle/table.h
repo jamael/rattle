@@ -53,22 +53,18 @@
 typedef struct {
 	void *head, *tail;	/* head and tail of table */
 	size_t size, pos, last;	/* size and position of table */
-	size_t chunk_size;	/* size of a chunk */
-	size_t chunk_count;	/* number of chunks */
-	size_t chunk_frag;	/* fragmented chunk number */
+
+	size_t chunk_size;	/* chunk size */
+	size_t chunk_count;	/* chunk counter */
+
+	size_t frag_count;	/* fragment counter */
 	uint8_t *frag_mask;	/* fragment mask */
+
 	int flags;		/* table flags */
+
+	/* constrains callback */
+	int (*constrains)(void const *, void const *);
 } ratt_table_t;
-
-static inline size_t ratt_table_pos_last(ratt_table_t *table)
-{
-	return table->last;
-}
-
-static inline size_t ratt_table_pos_current(ratt_table_t *table)
-{
-	return table->pos;
-}
 
 static inline size_t ratt_table_size(ratt_table_t *table)
 {
@@ -82,7 +78,12 @@ static inline size_t ratt_table_count(ratt_table_t *table)
 
 static inline size_t ratt_table_frag_count(ratt_table_t *table)
 {
-	return table->chunk_frag;
+	return table->frag_count;
+}
+
+static inline int ratt_table_fragmented(ratt_table_t *table)
+{
+	return (ratt_table_frag_count(table));
 }
 
 static inline int ratt_table_exists(ratt_table_t *table)
@@ -93,7 +94,17 @@ static inline int ratt_table_exists(ratt_table_t *table)
 static inline int ratt_table_isempty(ratt_table_t *table)
 {
 	/* true if table does not exist yet or no chunk pushed yet */
-	return ((!ratt_table_exists(table)) || !table->chunk_count);
+	return (!ratt_table_exists(table) || !ratt_table_count(table));
+}
+
+static inline size_t ratt_table_pos_last(ratt_table_t *table)
+{
+	return table->last;
+}
+
+static inline size_t ratt_table_pos_current(ratt_table_t *table)
+{
+	return table->pos;
 }
 
 static inline int ratt_table_pos_isfrag(ratt_table_t *table, size_t pos)
@@ -116,12 +127,7 @@ static inline int ratt_table_istail(ratt_table_t *table, void *chunk)
 	return (ratt_table_exists(table) && (chunk == table->tail));
 }
 
-static inline int ratt_table_isfrag(ratt_table_t *table)
-{
-	return (table->chunk_frag);
-}
-
-static inline void *ratt_table_get_first(ratt_table_t *table)
+static inline void *ratt_table_first(ratt_table_t *table)
 {
 	if (!ratt_table_isempty(table)) {
 		table->pos = 0;
@@ -131,7 +137,7 @@ static inline void *ratt_table_get_first(ratt_table_t *table)
 	return NULL;
 }
 
-static inline void *ratt_table_get_last(ratt_table_t *table)
+static inline void *ratt_table_last(ratt_table_t *table)
 {
 	if (!ratt_table_isempty(table)) {
 		table->pos = table->last;
@@ -141,13 +147,13 @@ static inline void *ratt_table_get_last(ratt_table_t *table)
 	return NULL;
 }
 
-static inline void *ratt_table_get_prev(ratt_table_t *table)
+static inline void *ratt_table_prev(ratt_table_t *table)
 {
 	if (!ratt_table_isempty(table)) {
 		while (table->pos) {
 			table->pos--;
 
-			if (ratt_table_isfrag(table)
+			if (ratt_table_fragmented(table)
 			    && ratt_table_pos_isfrag(table, table->pos))
 				continue;
 
@@ -159,14 +165,14 @@ static inline void *ratt_table_get_prev(ratt_table_t *table)
 	return NULL;
 }
 
-static inline void *ratt_table_get_next(ratt_table_t *table)
+static inline void *ratt_table_next(ratt_table_t *table)
 {
 	if (!ratt_table_isempty(table)) {
 		while ((table->pos + 1) <= table->last) {
 
 			table->pos++;
 
-			if (ratt_table_isfrag(table)
+			if (ratt_table_fragmented(table)
 			    && ratt_table_pos_isfrag(table, table->pos))
 				continue;
 
@@ -178,30 +184,29 @@ static inline void *ratt_table_get_next(ratt_table_t *table)
 	return NULL;
 }
 
-static inline void *ratt_table_get_first_next(ratt_table_t *table)
+static inline void *ratt_table_first_next(ratt_table_t *table)
 {
 	void *chunk = NULL;
-	if ((chunk = ratt_table_get_first(table)) != NULL) {
-		if (!ratt_table_isfrag(table)
+	if ((chunk = ratt_table_first(table)) != NULL) {
+		if (!ratt_table_fragmented(table)
 		    || !ratt_table_pos_isfrag(table, table->pos))
 			return chunk;
 	}
 
-	return ratt_table_get_next(table);
+	return ratt_table_next(table);
 }
 
-
-static inline void *ratt_table_get_circular_next(ratt_table_t *table)
+static inline void *ratt_table_circular_next(ratt_table_t *table)
 {
 	void *chunk = NULL;
-	if ((chunk = ratt_table_get_next(table)) != NULL) {
+	if ((chunk = ratt_table_next(table)) != NULL) {
 		return chunk;
 	}
 
-	return ratt_table_get_first_next(table);
+	return ratt_table_first_next(table);
 }
 
-static inline void *ratt_table_get_current(ratt_table_t *table)
+static inline void *ratt_table_current(ratt_table_t *table)
 {
 	if (!ratt_table_isempty(table)
 	    && table->pos <= table->last) {
@@ -211,7 +216,7 @@ static inline void *ratt_table_get_current(ratt_table_t *table)
 	return NULL;
 }
 
-static inline void *ratt_table_get(ratt_table_t *table, size_t pos)
+static inline void *ratt_table_chunk(ratt_table_t *table, size_t pos)
 {
 	if (!ratt_table_isempty(table)
 	    && pos <= table->last) {
@@ -223,23 +228,20 @@ static inline void *ratt_table_get(ratt_table_t *table, size_t pos)
 	return NULL;
 }
 
+static inline
+void ratt_table_set_constrains(ratt_table_t *table,
+                               int (*constrains)(void const *, void const *))
+{
+	table->constrains = constrains;
+}
+
 #define RATT_TABLE_FOREACH(tab, chunk) \
-	for ((chunk) = ratt_table_get_first_next((tab)); \
-	    (chunk) != NULL; (chunk) = ratt_table_get_next((tab)))
+	for ((chunk) = ratt_table_first_next((tab)); \
+	    (chunk) != NULL; (chunk) = ratt_table_next((tab)))
 
 #define RATT_TABLE_FOREACH_REVERSE(tab, chunk) \
-	for ((chunk) = ratt_table_get_last((tab)); \
-	    (chunk) != NULL; (chunk) = ratt_table_get_prev((tab)))
-
-#define RATT_TABLE_FOREACH_XXX(tab, chunk) \
-	for ((chunk) = (tab)->head, (tab)->pos = 0; \
-	    (!ratt_table_isempty((tab)) && (void *) (chunk) <= (tab)->tail); \
-	    ((tab)->pos)++, (chunk) = (void *) (chunk) + (tab)->chunk_size)
-
-#define RATT_TABLE_FOREACH_REVERSE_XXX(tab, chunk) \
-	for ((chunk) = (tab)->tail, (tab)->pos = (tab)->last; \
-	    (!ratt_table_isempty((tab)) && (void *) (chunk) >= (tab)->head); \
-	    ((tab)->pos)--, (chunk) = (void *) (chunk) - (tab)->chunk_size)
+	for ((chunk) = ratt_table_last((tab)); \
+	    (chunk) != NULL; (chunk) = ratt_table_prev((tab)))
 
 #define RATT_TABLE_INIT(tab) ratt_table_t (tab) = { 0 }
 
@@ -253,5 +255,6 @@ extern int ratt_table_get_tail_next(ratt_table_t *, void **);
 extern int ratt_table_get_frag_first(ratt_table_t *, void **);
 extern int ratt_table_del_current(ratt_table_t *);
 extern int ratt_table_set_pos_frag_first(ratt_table_t *);
+extern int ratt_table_satisfy_constrains(ratt_table_t *, void const *);
 
 #endif /* RATTLE_TABLE_H */

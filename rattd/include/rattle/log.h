@@ -22,7 +22,7 @@ enum RATTLOGLEVEL {
 	RATTLOGMAX	/* count; must be last */
 };
 
-static const char *ratt_log_level_name[RATTLOGMAX] = {
+static const char *ratt_log_level_to_name[RATTLOGMAX] = {
 	/* exact same order as in RATTLOGLEVEL */
 	"error", "warning", "notice",
 #ifdef DEBUG
@@ -30,20 +30,20 @@ static const char *ratt_log_level_name[RATTLOGMAX] = {
 #endif
 };
 
-static inline int ratt_log_name_to_level(const char *name)
+static inline int ratt_log_level(const char *name)
 {
 	int i;
 	for (i = RATTLOGERR; i < RATTLOGMAX; ++i)
-		if (strcmp(name, ratt_log_level_name[i]) == 0)
+		if (strcmp(name, ratt_log_level_to_name[i]) == 0)
 			return i;
 
 	return RATTLOGMAX;	/* RATTLOGMAX if none found */
 }
 
-static inline const char *ratt_log_level_to_name(int level)
+static inline const char *ratt_log_level_name(int level)
 {
 	if (level >= RATTLOGERR && level < RATTLOGMAX)
-		return ratt_log_level_name[level];
+		return ratt_log_level_to_name[level];
 	return "unknown";
 }
 

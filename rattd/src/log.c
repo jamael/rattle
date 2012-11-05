@@ -110,7 +110,7 @@ static int attach_module(ratt_module_entry_t *entry)
 #define LOGTIMFMT	"[%d %b %Y %T] "
 
 /* time prefix size, once processed */
-#define LOGTIMSIZ	23
+#define LOGTIMSIZ	24
 
 /* total prefix size, including log level */
 #define LOGPFXSIZ LOGTIMSIZ + RATTLOGLVLSIZ
@@ -129,8 +129,8 @@ static void std_print_msg(int level, char const *msg)
 	    && (localtime_r(&now, &tmres) != NULL))
 		strftime(prefix, LOGTIMSIZ, LOGTIMFMT, &tmres);
 	/* level name prefix */
-	snprintf(prefix + LOGTIMSIZ, RATTLOGLVLSIZ, "%s",
-	    ratt_log_level_to_name(level));
+	strncat(prefix, ratt_log_level_name(level), RATTLOGLVLSIZ);
+
 	/* message */
 	fprintf(out, "%s: %s", prefix, msg);
 }
@@ -174,9 +174,6 @@ int log_attach(void)
 	} else
 		debug("allocated hook table of size `%u'", LOG_HOOKTABSIZ);
 
-	/* export parent configuration */
-	l_parent_info.config = l_conf;
-
 	retval = module_parent_attach(&l_parent_info, &attach_module);
 	if (retval != OK) {
 		debug("module_parent_attach() failed");
@@ -215,7 +212,7 @@ int log_init(void)
 		return FAIL;
 	}
 
-	level = ratt_log_name_to_level(l_conf_verbose);
+	level = ratt_log_level(l_conf_verbose);
 	if (level >= RATTLOGMAX) {
 		error("`%s' is not a valid verbose level", l_conf_verbose);
 		return FAIL;

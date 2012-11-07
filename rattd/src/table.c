@@ -170,23 +170,25 @@ int ratt_table_search(ratt_table_t *table, void **retchunk,
 	void *chunk = NULL;
 
 	chunk = ratt_table_current(table);
-	if (chunk && (comp(chunk, compdata) == OK)) {
+	if (chunk && (comp(chunk, compdata) == MATCH)) {
 		*retchunk = chunk;
 		return OK;
 	} else
 		RATT_TABLE_FOREACH(table, chunk)
 		{
-			if (chunk && (comp(chunk, compdata) == OK)) {
+			if (chunk && (comp(chunk, compdata) == MATCH)) {
 				*retchunk = chunk;
 				return OK;
 			}
 		}
 
+	*retchunk = NULL;
 	return FAIL;
 }
 
 int ratt_table_satisfy_constrains(ratt_table_t *table, void const *chunk)
 {
+	RATTLOG_TRACE();
 	void *match = NULL;
 
 	if (!table->constrains)	/* table has no constrain */

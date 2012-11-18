@@ -30,7 +30,6 @@
 #include <config.h>
 #endif
 
-#include <signal.h>
 #include <stdint.h>
 
 #include <rattle/conf.h>
@@ -40,9 +39,7 @@
 #include <rattle/proc.h>
 
 #include "conf.h"
-#include "dtor.h"
 #include "module.h"
-#include "signal.h"
 
 /* attached process module */
 static ratt_module_entry_t *l_proc_module = NULL;
@@ -119,14 +116,6 @@ static inline int on_stop()
 	return FAIL;
 }
 
-static void on_interrupt(int signum, siginfo_t const *siginfo, void *udata)
-{
-	if (l_proc_hook && l_proc_hook->on_interrupt) {
-		l_proc_hook->on_interrupt(signum, siginfo, udata);
-	} else
-		debug("on_interrupt() undefined");
-}
-
 static void
 on_unregister(int (*process)(void *), ratt_proc_attr_t *attr, void *udata)
 {
@@ -183,20 +172,12 @@ int proc_attach(void)
 		return FAIL;
 	}
 
-	retval = dtor_register(proc_detach, NULL);
-	if (retval != OK) {
-		debug("dtor_register() failed");
-		module_parent_detach(&l_parent_info);
-		return FAIL;
-	}
-
 	return OK;
 }
 
 void proc_fini(void *udata)
 {
 	RATTLOG_TRACE();
-	signal_unregister(SIGINT, &on_interrupt);
 	conf_release(l_conf);
 }
 
@@ -208,20 +189,6 @@ int proc_init(void)
 	retval = conf_parse(PROC_CONF_NAME, l_conf);
 	if (retval != OK) {
 		debug("conf_parse() failed");
-		return FAIL;
-	}
-
-	retval = signal_register(SIGINT, &on_interrupt, NULL);
-	if (retval != OK) {
-		debug("signal_register() failed");
-		return FAIL;
-	}
-
-	retval = dtor_register(proc_fini, NULL);
-	if (retval != OK) {
-		debug("dtor_register() failed");
-		signal_unregister(SIGINT, &on_interrupt);
-		conf_release(l_conf);
 		return FAIL;
 	}
 

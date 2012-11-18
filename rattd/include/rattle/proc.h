@@ -1,7 +1,6 @@
 #ifndef RATTLE_PROC_H
 #define RATTLE_PROC_H
 
-#include <signal.h>
 #include <stdint.h>
 
 #define RATT_PROC		"proc"	/* name of this module parent */
@@ -19,7 +18,6 @@ typedef struct {
 typedef struct {
 	int (*on_start)();
 	int (*on_stop)();
-	void (*on_interrupt)(int, siginfo_t const *, void *);
 	void (*on_unregister)(int (*)(void *), ratt_proc_attr_t *, void *);
 	int (*on_register)(int (*)(void *), ratt_proc_attr_t *, void *);
 } ratt_proc_hook_t;

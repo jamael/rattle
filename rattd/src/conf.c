@@ -36,18 +36,48 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <rattle/args.h>
 #include <rattle/def.h>
 #include <rattle/conf.h>
 #include <rattle/log.h>
 
-#include "dtor.h"
+#ifndef CONF_FILEPATH
+#define CONF_FILEPATH	"/etc/rattle/rattd.conf"
+#endif
 
 /* initial size of a value list */
-#define CONF_LSTTABSIZ		4
+#define CONF_LSTTABSIZ		2
 
 /* maximum size of a declaration path */
 #define CONF_SETTPATHMAX	128
 
+/* arguments section identifier */
+#define CONF_ARGSSEC_ID		'C'
+
+/* config defaults */
+static char const l_default_conf_file[] = CONF_FILEPATH;
+
+/* config arguments */
+static char const *l_args_conf_file = l_default_conf_file;
+static int get_args_conf_file(char const *path)
+{
+	if (strlen(path) >= PATH_MAX) {
+		error("%s: path is too long", path);
+		return FAIL;
+	}
+
+	l_args_conf_file = path;
+
+	return OK;
+}
+
+static ratt_args_t l_args[] = {
+	{ 'f', "filepath", "use specified configuration file",
+	    NULL, get_args_conf_file, 0 },
+	{ 0 }
+};
+
+/* config root */
 static struct config_t l_cfg;
 
 static int check_num(int type, int num, int unsign)
@@ -578,6 +608,7 @@ int conf_parse(char const *parent, ratt_conf_t *decl)
 
 void conf_fini(void *udata)
 {
+	args_unregister(CONF_ARGSSEC_ID, NULL, l_args);
 	conf_close();
 }
 
@@ -586,11 +617,19 @@ int conf_init(void)
 	RATTLOG_TRACE();
 	int retval;
 
+	retval = args_register(CONF_ARGSSEC_ID, NULL, l_args);
+	if (retval != OK) {
+		debug("args_register() failed");
+		return FAIL;
+	}
+
 	config_init(&l_cfg);
 
-	retval = dtor_register(conf_fini, NULL);
+	retval = conf_open(l_args_conf_file);
 	if (retval != OK) {
-		debug("dtor_register() failed");
+		debug("conf_open() failed");
+		args_unregister(CONF_ARGSSEC_ID, NULL, l_args);
+		config_destroy(&l_cfg);
 		return FAIL;
 	}
 

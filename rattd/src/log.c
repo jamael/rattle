@@ -40,7 +40,6 @@
 #include <rattle/table.h>
 
 #include "conf.h"
-#include "dtor.h"
 #include "module.h"
 
 /* name of the config declaration */
@@ -184,14 +183,6 @@ int log_attach(void)
 	/* do not bother with attach success */
 	ratt_module_attach_from_config(RATT_LOG, &l_conf_module);
 
-	retval = dtor_register(log_detach, NULL);
-	if (retval != OK) {
-		debug("dtor_register() failed");
-		module_parent_detach(&l_parent_info);
-		ratt_table_destroy(&l_hooktab);
-		return FAIL;
-	}
-
 	return OK;
 }
 
@@ -214,18 +205,10 @@ int log_init(void)
 
 	level = ratt_log_level(l_conf_verbose);
 	if (level >= RATTLOGMAX) {
-		error("`%s' is not a valid verbose level", l_conf_verbose);
-		return FAIL;
+		warning("unknown verbose level: %s", l_conf_verbose);
 	} else if (level != l_verbose) {
-		debug("switching to verbose level `%s'", l_conf_verbose);
+		debug("switching to verbose level: %s", l_conf_verbose);
 		l_verbose = level;
-	}
-
-	retval = dtor_register(log_fini, NULL);
-	if (retval != OK) {
-		debug("dtor_register() failed");
-		conf_release(l_conf);
-		return FAIL;
 	}
 
 	return OK;

@@ -1,6 +1,7 @@
 #ifndef RATTLE_MODULE_H
 #define RATTLE_MODULE_H
 
+#include <rattle/args.h>
 #include <rattle/conf.h>
 
 /* maximum size of a module name */
@@ -14,7 +15,6 @@ typedef struct {
 	char const * const name;	/* parent name */
 	unsigned int const ver_major;	/* major version */
 	unsigned int const ver_minor;	/* minor version */
-	ratt_conf_t const *config;	/* parent config */
 
 	/* attach callback */
 	int (*attach)(ratt_module_entry_t const *);
@@ -28,14 +28,17 @@ struct module_entry {
 	char const * const version;	/* module version */
 	unsigned int flags;		/* module flags */
 
+	ratt_args_t *args;		/* arguments table */
 	ratt_conf_t *config;		/* config table */
 
 	/* attach callback */
 	void *(*attach)(ratt_module_parent_t const *);
+	/* detach callback */
+	void (*detach)(void);
 	/* constructor callback */
-	int (*constructor)();
+	int (*constructor)(void);
 	/* destructor callack */
-	void (*destructor)();
+	void (*destructor)(void);
 
 	ratt_module_parent_t const *parinfo;	/* parent information */
 };

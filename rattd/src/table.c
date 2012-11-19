@@ -79,7 +79,7 @@ static inline int frag_mask_unset(uint8_t *slot, size_t pos, size_t *cnt)
 static inline int write_chunk(ratt_table_t *table, void const *src,
                               int (*getdst)(ratt_table_t *, void **))
 {
-	void *dst = NULL;
+	void *dst = NULL, *curr = NULL;
 	int retval;
 
 	if (!getdst) {
@@ -88,9 +88,22 @@ static inline int write_chunk(ratt_table_t *table, void const *src,
 	}
 
 	retval = ratt_table_satisfy_constrains(table, src);
-	if (retval != OK) {
+	if (retval != OK && !table->on_constrains) {
 		debug("ratt_table_satisfy_constrains() failed");
 		return FAIL;
+	} else if (retval != OK) {
+		curr = ratt_table_current(table);
+		if (!curr) {
+			debug("ratt_table_current() failed");
+			return FAIL;
+		}
+		retval = table->on_constrains(curr, src);
+		if (retval != OK) {
+			debug("table->on_constrains() failed");
+			return FAIL;
+		}
+		debug("constrains have been resolved");
+		return OK;
 	}
 
 	retval = getdst(table, &dst);
@@ -364,7 +377,10 @@ int ratt_table_create(ratt_table_t *table, size_t cnt, size_t size, int flags)
 {
 	RATTLOG_TRACE();
 
-	if (cnt < RATTTABMINSIZ) {
+	if (ratt_table_exists(table)) {
+		debug("table at %p exists already", table);
+		return FAIL;
+	} else if (cnt < RATTTABMINSIZ) {
 		debug("asked for size %u when minimum is %u",
 		    cnt, RATTTABMINSIZ);
 		return FAIL;
@@ -399,7 +415,7 @@ int ratt_table_create(ratt_table_t *table, size_t cnt, size_t size, int flags)
 	/* table exists now */
 	table->flags = RATTTABFLXIS | flags;
 
-	debug("created new table with head at %p", table->head);
+	debug("created new table at %p with head at %p", table, table->head);
 
 	return OK;
 }

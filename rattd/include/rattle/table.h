@@ -6,8 +6,8 @@
 #include <rattle/def.h>
 
 #define RATTTABFLXIS	0x1	/* table exists */
-#define RATTTABFLNRA	0x2	/* forbid realloc */
-#define RATTTABFLNRU	0x4	/* forbid fragment reuse */
+#define RATTTABFLNRA	0x2	/* disable realloc */
+#define RATTTABFLNRU	0x4	/* disable fragment reuse */
 
 /* minimum table size; cannot be lower than 1 */
 #ifndef RATTTABMINSIZ
@@ -64,6 +64,7 @@ typedef struct {
 
 	/* constrains callback */
 	int (*constrains)(void const *, void const *);
+	int (*on_constrains)(void *, void const *);
 } ratt_table_t;
 
 static inline size_t ratt_table_size(ratt_table_t *table)
@@ -169,9 +170,7 @@ static inline void *ratt_table_next(ratt_table_t *table)
 {
 	if (!ratt_table_isempty(table)) {
 		while ((table->pos + 1) <= table->last) {
-
 			table->pos++;
-
 			if (ratt_table_fragmented(table)
 			    && ratt_table_pos_isfrag(table, table->pos))
 				continue;
@@ -180,7 +179,6 @@ static inline void *ratt_table_next(ratt_table_t *table)
 			    + (table->pos * table->chunk_size);
 		}
 	}
-
 	return NULL;
 }
 
@@ -192,7 +190,6 @@ static inline void *ratt_table_first_next(ratt_table_t *table)
 		    || !ratt_table_pos_isfrag(table, table->pos))
 			return chunk;
 	}
-
 	return ratt_table_next(table);
 }
 
@@ -202,7 +199,6 @@ static inline void *ratt_table_circular_next(ratt_table_t *table)
 	if ((chunk = ratt_table_next(table)) != NULL) {
 		return chunk;
 	}
-
 	return ratt_table_first_next(table);
 }
 
@@ -228,11 +224,20 @@ static inline void *ratt_table_chunk(ratt_table_t *table, size_t pos)
 	return NULL;
 }
 
-static inline
-void ratt_table_set_constrains(ratt_table_t *table,
-                               int (*constrains)(void const *, void const *))
+static inline void
+ratt_table_set_constrains(
+    ratt_table_t *table,
+    int (*compare)(void const *, void const *))
 {
-	table->constrains = constrains;
+	table->constrains = compare;
+}
+
+static inline void
+ratt_table_set_on_constrains(
+    ratt_table_t *table,
+    int (*resolve)(void *, void const *))
+{
+	table->on_constrains = resolve;
 }
 
 #define RATT_TABLE_FOREACH(tab, chunk) \

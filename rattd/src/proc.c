@@ -1,5 +1,5 @@
 /*
- * RATTLE processor
+ * RATTLE processor core
  * Copyright (c) 2012, Jamael Seun
  * All rights reserved.
  * 
@@ -42,17 +42,16 @@
 #include "module.h"
 
 /* attached process module */
-static ratt_module_entry_t *l_proc_module = NULL;
 static ratt_proc_hook_t *l_proc_hook = NULL;
 
-/* name of the parent config declaration */
-#define PROC_CONF_NAME	"process"
+/* configuration */
+#define PROC_CONF_LABEL	"process"
 
 #ifndef RATTD_PROC_MODULE
 #define RATTD_PROC_MODULE "serial"
 #endif
-static RATTCONF_DEFVAL(l_conf_module_defval, RATTD_PROC_MODULE);
-static RATTCONF_LIST_INIT(l_conf_module);
+static RATT_CONF_DEFVAL(l_conf_module_defval, RATTD_PROC_MODULE);
+static RATT_CONF_LIST_INIT(l_conf_module);
 
 static ratt_conf_t l_conf[] = {
 	{ "module", "process module to use. first load, first use.",
@@ -61,44 +60,17 @@ static ratt_conf_t l_conf[] = {
 	{ NULL }
 };
 
+/* parent info */
+static RATT_TABLE_INIT(l_hooktab);
 static ratt_module_parent_t l_parent_info = {
-	RATT_PROC, RATT_PROC_VER_MAJOR, RATT_PROC_VER_MINOR,
+	.name = RATT_PROC_NAME,
+	.ver_major = RATT_PROC_VER_MAJOR,
+	.ver_minor = RATT_PROC_VER_MINOR,
+	.conf_label = PROC_CONF_LABEL,
+	.hook_table = &l_hooktab,
+	.hook_size = sizeof(ratt_proc_hook_t),
+	.flags = RATTMODPARFLONE,
 };
-
-static int attach_module(ratt_module_entry_t *entry)
-{
-	ratt_proc_hook_t *hook = NULL;
-	int retval;
-
-	/* cannot attach multiple processor */
-	if (l_proc_module) {
-		debug("module `%s' attached first, reject `%s'",
-		    l_proc_module->name, entry->name);
-		return FAIL;
-	}
-
-	/* first, module may need to check its configuration */
-	if (entry->config) {
-		retval = conf_parse(PROC_CONF_NAME, entry->config);
-		if (retval != OK) {
-			debug("conf_parse() failed for `%s'", entry->name);
-			return FAIL;
-		}
-	}
-
-	/* second, let the module decide wheter it attaches or not */
-	hook = entry->attach(&l_parent_info);
-	if (!hook) {
-		debug("`%s' chose not to attach", entry->name);
-		return FAIL;
-	}
-
-	l_proc_module = entry;
-	l_proc_hook = hook;
-
-	debug("`%s' hooked", entry->name);
-	return OK;
-}
 
 static inline int on_start()
 {
@@ -149,29 +121,34 @@ int proc_start()
 void proc_detach(void *udata)
 {
 	RATTLOG_TRACE();
-	l_proc_module = NULL;
 	l_proc_hook = NULL;
-	module_parent_detach(&l_parent_info);
+	module_parent_detach(RATT_PROC_NAME);
 }
 
 int proc_attach(void)
 {
+	ratt_proc_hook_t **module_hook = NULL;
+	char **module = NULL;
 	int retval;
 
-	retval = module_parent_attach(&l_parent_info, &attach_module);
+	retval = module_parent_attach(&l_parent_info);
 	if (retval != OK) {
 		debug("module_parent_attach() failed");
 		return FAIL;
 	}
 
-	retval = ratt_module_attach_from_config(RATT_PROC, &l_conf_module);
-	if (retval != OK) {
-		debug("ratt_module_attach_from_config() failed");
-		error("no processor module attached");
-		module_parent_detach(&l_parent_info);
-		return FAIL;
+	RATT_CONF_LIST_FOREACH(&l_conf_module, module)
+	{
+		ratt_module_attach(RATT_PROC_NAME, *module);
 	}
 
+	module_hook = ratt_table_first(&l_hooktab);
+	if (!module_hook) {
+		error("none of processor modules attached");
+		module_parent_detach(RATT_PROC_NAME);
+		return FAIL;
+	}
+	l_proc_hook = *module_hook;
 	return OK;
 }
 
@@ -186,7 +163,7 @@ int proc_init(void)
 	RATTLOG_TRACE();
 	int retval;
 
-	retval = conf_parse(PROC_CONF_NAME, l_conf);
+	retval = conf_parse(PROC_CONF_LABEL, l_conf);
 	if (retval != OK) {
 		debug("conf_parse() failed");
 		return FAIL;

@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define RATT_PROC		"proc"	/* name of this module parent */
+#define RATT_PROC_NAME		"proc"	/* name of parent */
 #define RATT_PROC_VER_MAJOR	0	/* major version */
 #define RATT_PROC_VER_MINOR	1	/* minor version */
 

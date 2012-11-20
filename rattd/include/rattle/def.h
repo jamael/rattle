@@ -7,9 +7,12 @@
 /* function return values */
 #define FAIL		0	/* failed */
 #define OK		1	/* succeeded */
-#define MATCH		2	/* conditions matched */
-#define NOMATCH		3	/* conditions did not match */
-#define STOP		4	/* stop request */
+/* core init return values */
+#define STOP		2	/* stop request */
+#define NOSTART		3	/* not started */
+/* compare return values */
+#define MATCH		OK	/* conditions matched */
+#define NOMATCH		FAIL	/* conditions did not match */
 
 /* maximum size of a path, including trailing zero byte */
 #ifndef PATH_MAX

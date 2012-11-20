@@ -35,21 +35,15 @@
 #include <time.h>
 
 #include <rattle/conf.h>
+#ifdef DEBUG
+#include <rattle/debug.h>
+#endif
 #include <rattle/def.h>
 #include <rattle/log.h>
 #include <rattle/table.h>
 
 #include "conf.h"
 #include "module.h"
-
-/* name of the config declaration */
-#define LOG_CONF_NAME	"logger"
-
-/* hook table initial size */
-#ifndef LOG_HOOKTABSIZ
-#define LOG_HOOKTABSIZ		4
-#endif
-static RATT_TABLE_INIT(l_hooktab);	/* hook table */
 
 /* logger verbosity level */
 #ifdef DEBUG
@@ -58,16 +52,19 @@ static int l_verbose = RATTLOGDBG;
 static int l_verbose = RATTLOGNOT;
 #endif
 
+/* configuration */
+#define LOG_CONF_LABEL	"logger"
+
 #ifndef RATTD_LOG_MODULE
 #define RATTD_LOG_MODULE "syslog"
 #endif
-static RATTCONF_DEFVAL(l_conf_module_defval, RATTD_LOG_MODULE);
-static RATTCONF_LIST_INIT(l_conf_module);
+static RATT_CONF_DEFVAL(l_conf_module_defval, RATTD_LOG_MODULE);
+static RATT_CONF_LIST_INIT(l_conf_module);
 
 #ifndef RATTD_LOG_VERBOSE
 #define RATTD_LOG_VERBOSE "notice"
 #endif
-static RATTCONF_DEFVAL(l_conf_verbose_defval, RATTD_LOG_VERBOSE);
+static RATT_CONF_DEFVAL(l_conf_verbose_defval, RATTD_LOG_VERBOSE);
 static char *l_conf_verbose = NULL;
 
 static ratt_conf_t l_conf[] = {
@@ -80,30 +77,16 @@ static ratt_conf_t l_conf[] = {
 	{ NULL }
 };
 
+/* parent info */
+static RATT_TABLE_INIT(l_hooktab);
 static ratt_module_parent_t l_parent_info = {
-	RATT_LOG, RATT_LOG_VER_MAJOR, RATT_LOG_VER_MINOR,
+	.name = RATT_LOG_NAME,
+	.ver_major = RATT_LOG_VER_MAJOR,
+	.ver_minor = RATT_LOG_VER_MINOR,
+	.conf_label = LOG_CONF_LABEL,
+	.hook_table = &l_hooktab,
+	.hook_size = sizeof(ratt_log_hook_t),
 };
-
-static int attach_module(ratt_module_entry_t *entry)
-{
-	ratt_log_hook_t *hook = NULL;
-	int retval;
-
-	hook = entry->attach(&l_parent_info);
-	if (!hook) {
-		debug("`%s' chose not to attach", entry->name);
-		return FAIL;
-	}
-
-	retval = ratt_table_push(&l_hooktab, hook);
-	if (retval != OK) {
-		debug("ratt_table_push() failed");
-		return FAIL;
-	}
-
-	debug("`%s' hooked", entry->name);
-	return OK;
-}
 
 /* time prefix format to strftime() */
 #define LOGTIMFMT	"[%d %b %Y %T] "
@@ -136,7 +119,7 @@ static void std_print_msg(int level, char const *msg)
 
 static void on_msg(int level, char const *msg)
 {
-	ratt_log_hook_t *hook = NULL;
+	ratt_log_hook_t **hook = NULL;
 
 	/* honor the verbose level setting */
 	if (level > l_verbose)
@@ -148,41 +131,33 @@ static void on_msg(int level, char const *msg)
 	/* registered logger module */
 	RATT_TABLE_FOREACH(&l_hooktab, hook)
 	{
-		if (hook->on_msg)
-			hook->on_msg(level, msg);
+		if ((*hook)->on_msg)
+			(*hook)->on_msg(level, msg);
 	}
 }
 
 void log_detach(void *udata)
 {
 	RATTLOG_TRACE();
-	module_parent_detach(&l_parent_info);
-	ratt_table_destroy(&l_hooktab);
+	module_parent_detach(RATT_LOG_NAME);
 }
 
 int log_attach(void)
 {
 	RATTLOG_TRACE();
+	char **modname = NULL;
 	int retval;
 
-	retval = ratt_table_create(&l_hooktab,
-	    LOG_HOOKTABSIZ, sizeof(ratt_log_hook_t), 0);
-	if (retval != OK) {
-		debug("ratt_table_create() failed");
-		return FAIL;
-	} else
-		debug("allocated hook table of size `%u'", LOG_HOOKTABSIZ);
-
-	retval = module_parent_attach(&l_parent_info, &attach_module);
+	retval = module_parent_attach(&l_parent_info);
 	if (retval != OK) {
 		debug("module_parent_attach() failed");
-		ratt_table_destroy(&l_hooktab);
 		return FAIL;
 	}
 
-	/* do not bother with attach success */
-	ratt_module_attach_from_config(RATT_LOG, &l_conf_module);
-
+	RATT_CONF_LIST_FOREACH(&l_conf_module, modname)
+	{
+		ratt_module_attach(RATT_LOG_NAME, *modname);
+	}
 	return OK;
 }
 
@@ -197,7 +172,7 @@ int log_init(void)
 	RATTLOG_TRACE();
 	int retval, level;
 
-	retval = conf_parse(LOG_CONF_NAME, l_conf);
+	retval = conf_parse(LOG_CONF_LABEL, l_conf);
 	if (retval != OK) {
 		debug("conf_parse() failed");
 		return FAIL;

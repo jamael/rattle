@@ -1,24 +1,37 @@
-RATTLE, A multi-slot link-of-trust socket manager.
+RATTLE, A link-of-trust socket manager.
 
-RATTLE stands for (r)emote (a)ccess (t)hrough (t)unnel.
-The remaining part of the accronym is left to the individual for kind wording
-once they get to know better.  As an example, mine are (l)ove, (e)tcetera.
+rattd(8) is the multi-slot link-of-trust socket manager daemon of
+the RATTLE software.
 
-Although RATTLE accronym strongly suggests that tunneling is the main purpose
-of this software, it could be anything that needs a link-of-trust network.
+REQUIREMENTS
 
-What does that mean?  Well, that is a good question...
-Quite honestly, I dunno.
+You will need the following libraries and header files installed on
+your system to get rattd compiled from source.
 
-It is fair enough to say that naming might change, purpose might change
-and the will of doing this might change.  So don't expect much from this.
-Time will tell.
+	libconfig version 1.4.5 or newer;
+	pkg-config
 
-RATTLE is not ready for any purpose except the joy of programming.  If you
-find yourself attracted to the project, feel free to jump in with your ideas
-and patches.  It is unclear for the moment where RATTLE is going to nor what
-are the goals of the project.  I felt inspired at writing a software from
-scratch while looking at DNDS software written by Nicolas-Joseph Bouliane.
 
-RATTLE is inspired by the DNDS software design scheme.
-You can find more about DNDS at http://github.com/nicboul/DNDS/
+BUILDING FROM A RELEASE
+
+Use the configure script to generate the required Makefiles, then make.
+
+$ ./configure
+$ make
+
+To install, give an install rule to make. That is, as root;
+
+$ su -c `make install`
+
+or
+
+$ sudo make install
+
+
+BUILDING FROM TREE
+
+If you cannot find the configure script, you need to run autogen first.
+
+$ build/autogen
+
+Note that you need the GNU autotools to generate the script.

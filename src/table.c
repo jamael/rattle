@@ -31,12 +31,41 @@
 #endif
 
 #include <errno.h>
+#include <rattle.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include <rattle/def.h>
-#include <rattle/log.h>
-#include <rattle/table.h>
+
+/*
+ * The following macro defines the bit flag mathematics
+ * used to compute the table->frag_mask member which is laid out
+ * on a dynamically allocated array of 8bits slot.
+ *
+ * A frag_mask bit toggled on means there is fragmentation at
+ * the corresponding table->pos which is zero-based.
+ *
+ * frag_mask_size macro gives the size of a (x) flags array
+ * fsbset() macro finds the first significant bit set in the slot
+ * shift_mask() macro computes the bit flags position in the slot
+ * shift_mask_slot() macro computes the slot position in the array
+ *
+ * Note: fsbset() uses ffs() to take advantages of hardware support
+ *       for find first bit set operation *but* ffs() is one-based.
+ *       Thus, fsbset() substracts one so that results are zero-based.
+ *
+ *       Care must be taken to verify that bits are set before using
+ *       fsbset() as ffs() uses return value of 0 to indicate that
+ *       no bit is set.
+ */
+#define frag_mask_size(x) ((1 + ((x) / 8)) * sizeof(uint8_t))
+#define fsbset(x) (ffs((x)) - 1)
+#define shift_mask(pos) (1 << ((pos) & 7))
+#define shift_mask_slot(head, pos)			\
+	do {						\
+		if ((head)) {				\
+			(head) += (pos) / 8;		\
+		}					\
+	} while (0)
 
 static inline int is_frag(uint8_t const *slot, size_t pos)
 {
@@ -173,6 +202,70 @@ static int realloc_and_move(ratt_table_t *table)
 	table->size = newsiz;
 
 	return OK;
+}
+
+int ratt_table_pos_isfrag(ratt_table_t *table, size_t pos)
+{
+	uint8_t const *slot = table->frag_mask;
+	if (!ratt_table_isempty(table)
+	    && pos <= table->last)
+		shift_mask_slot(slot, pos);
+		return (*slot & shift_mask(pos));
+	return 0;
+}
+
+void *ratt_table_prev(ratt_table_t *table)
+{
+	if (!ratt_table_isempty(table)) {
+		while (table->pos) {
+			table->pos--;
+
+			if (ratt_table_fragmented(table)
+			    && ratt_table_pos_isfrag(table, table->pos))
+				continue;
+
+			return (char *) table->head
+			    + (table->pos * table->chunk_size);
+		}
+	}
+
+	return NULL;
+}
+
+void *ratt_table_next(ratt_table_t *table)
+{
+	if (!ratt_table_isempty(table)) {
+		while ((table->pos + 1) <= table->last) {
+			table->pos++;
+			if (ratt_table_fragmented(table)
+			    && ratt_table_pos_isfrag(table, table->pos))
+				continue;
+
+			return (char *) table->head
+			    + (table->pos * table->chunk_size);
+		}
+	}
+	return NULL;
+}
+
+void *ratt_table_first_next(ratt_table_t *table)
+{
+	void *chunk = NULL;
+	if ((chunk = ratt_table_first(table)) != NULL) {
+		if (!ratt_table_fragmented(table)
+		    || !ratt_table_pos_isfrag(table, table->pos))
+			return chunk;
+	}
+	return ratt_table_next(table);
+}
+
+void *ratt_table_circular_next(ratt_table_t *table)
+{
+	void *chunk = NULL;
+	if ((chunk = ratt_table_next(table)) != NULL) {
+		return chunk;
+	}
+	return ratt_table_first_next(table);
 }
 
 int ratt_table_search(ratt_table_t *table, void **retchunk,

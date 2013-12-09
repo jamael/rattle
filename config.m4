@@ -1,16 +1,15 @@
-AC_INIT([rattd], [0.0.0])
+m4_include([m4/rattle.m4])
+
+AC_INIT([rattle], [0.0.0])
 AC_DEFINE([RATTLE_VERSION_MAJOR], [0], [RATTLE major number])
 AC_DEFINE([RATTLE_VERSION_MINOR], [0], [RATTLE minor number])
 AC_DEFINE([RATTLE_VERSION_PATCH], [0], [RATTLE patch level])
 
-AC_CONFIG_SRCDIR([LICENSE])
-AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_SRCDIR([COPYRIGHTS])
+AC_CONFIG_HEADERS([config.h include/rattle.h])
 AC_CONFIG_AUX_DIR([build])
 AC_CONFIG_MACRO_DIR([m4])
-
-AC_CONFIG_FILES([Makefile
-		modules/Makefile
-		include/Makefile])
+AC_CONFIG_FILES([Makefile])
 
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
@@ -62,4 +61,3 @@ AM_CONDITIONAL([WANT_TEST], [test "x$enable_test_mode" != "xno"])
 
 AC_DEFINE([WANT_THREADS], [1], [threads])
 
-m4_include([m4/rattle.m4])

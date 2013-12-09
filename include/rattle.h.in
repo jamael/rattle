@@ -1,0 +1,122 @@
+#ifndef RATTLE_H
+#define RATTLE_H
+
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>	/* ffs() */
+
+#define RATTLE_VERSION_MAJOR	0
+#define RATTLE_VERSION_MINOR	0
+#define RATTLE_VERSION_PATCH	0
+
+extern char const rattle_version_string[];
+extern char const rattle_license_string[];
+
+/* version to string */
+#define rattvtos(a, b, c) #a "." #b "." #c
+
+/* function return values */
+#define RATTFAIL		0		/* failed */
+#define RATTOK			1		/* succeeded */
+/* core init return values */
+#define RATTSTOP		2		/* stop request */
+#define RATTNOSTART		3		/* not started */
+/* compare return values */
+#define RATTMATCH		RATTOK		/* conditions matched */
+#define RATTNOMATCH		RATTFAIL	/* conditions did not match */
+
+/* module name size (maximum) */
+#define RATTMODNAMSIZMAX	32
+
+typedef struct ratt_core ratt_core_t;
+typedef struct ratt_core_hook ratt_core_hook_t;
+
+struct ratt_module {
+	void *handle;			/* module handle */
+
+	char const * const name;	/* module name */
+	char const * const desc;	/* module description */
+	char const * const version;	/* module version */
+	unsigned int flags;		/* module flags */
+
+	/* attach callback */
+	int (*attach)(ratt_core_hook_t *);
+	/* detach callback */
+	void (*detach)(void);
+	/* constructor callback */
+	int (*constructor)(void);
+	/* destructor callback */
+	void (*destructor)(void);
+
+	ratt_core_t const *core;	/* core information */
+	size_t const hook_size;		/* module hook size */
+};
+
+typedef struct ratt_module ratt_module_t;
+
+extern int ratt_module_register(ratt_module_t const *, int);
+extern int ratt_module_unregister(ratt_module_t const *);
+extern int ratt_module_attach(ratt_core_t const *, char const *);
+
+#define RATT_MODULE_VERSION RATTLE_VERSION_MAJOR
+#define RATT_MODULE_INIT(x, e)						\
+	int __ratt_module_init_ ## x (void *handle)			\
+	{								\
+		(e)->handle = handle;					\
+		return ratt_module_register(e, RATT_MODULE_VERSION);	\
+	}
+
+/* core hook information */
+struct ratt_core_hook {
+	ratt_module_t const *module;	/* module hooked */
+	unsigned int version;		/* hook version */
+	void *hook;			/* hook pointer */
+};
+
+/* core states */
+enum ratt_core_state {
+	RATTCORSTBOOT = 0,	/* booting */
+	RATTCORSTINIT,		/* initialized */
+	RATTCORSTSTAR,		/* started */
+	RATTCORSTSTOP,		/* stopped */
+	RATTCORSTFINI,		/* finished */
+};
+
+typedef enum ratt_core_state ratt_core_state_t;
+
+/* core initialization data */
+struct ratt_core_init {
+	ratt_core_state_t state;	/* core state */
+	ratt_table_t *hook_table;	/* core hook table */
+	void *udata;			/* core user data */
+};
+
+typedef struct ratt_core_init ratt_core_init_t;
+
+/* core information */
+struct ratt_core {
+	char const * const name;	/* name */
+	unsigned int const ver_major;	/* version major number */
+	unsigned int const ver_minor;	/* version minor number */
+	unsigned int flags;		/* flags */
+
+	size_t const hook_size;		/* maximum size of hook info */
+
+	/* attach hook callback */
+	int (*attach_hook)(ratt_core_hook_t const *);
+	/* detach hook callback */
+	int (*detach_hook)(ratt_core_hook_t const *);
+	/* start callback */
+	int (*start)(ratt_core_init_t *);
+	/* stop callback */
+	int (*stop)(ratt_core_init_t *);
+	/* init callback */
+	int (*init)(ratt_core_init_t *);
+	/* fini callback */
+	int (*fini)(ratt_core_init_t *);
+};
+
+struct rattle {
+	void *udata;
+};
+#endif /* RATTLE_H */

@@ -1,12 +1,15 @@
-RATTLE, A link-of-trust socket manager.
+RATTLE, a toolkit for modular extensions
 
-rattd(8) is the multi-slot link-of-trust socket manager daemon of
-the RATTLE software.
+
+RATTLE is a lightweight and modular framework for programs...
+
+
+
 
 REQUIREMENTS
 
 You will need the following libraries and header files installed on
-your system to get rattd compiled from source.
+your system to get RATTLE compiled from source.
 
 	libconfig version 1.4.5 or newer;
 	pkg-config

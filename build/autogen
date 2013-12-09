@@ -10,23 +10,24 @@ cd `dirname "$0"`/..
 # configure.ac
 #
 cp config.m4 configure.ac
-for ii in modules/*/*/config.m4; do
+for ii in modules/*/config.m4 modules/*/*/config.m4; do
 	cat $ii >> configure.ac
 done
 echo "AC_OUTPUT" >> configure.ac
 
 #
-# modules/Makefile.am
+# Makefile.am
 #
-cp modules/Makefile.global modules/Makefile.am
-for ii in modules/*/*/Makefile.am; do
-	cat $ii >> modules/Makefile.am
+cp Makefile.fragment Makefile.am
+for ii in modules/*/Makefile.fragment modules/*/*/Makefile.fragment; do
+	cat $ii >> Makefile.am
 done
 
 #
-# invoke autoconf
+# autoconf
 #
-autoreconf -fvi
+autoconf
+automake
 
 #
 # cleanup

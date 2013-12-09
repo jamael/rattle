@@ -33,81 +33,18 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include <errno.h>
+#include <rattle.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <rattle/args.h>
-#include <rattle/conf.h>
-#include <rattle/def.h>
-#include <rattle/log.h>
-#include <rattle/module.h>
-#include <rattle/table.h>
+#include <rattle/data.h>
+#include <rattle/debug.h>
 
-#include <rattle/core/debug.h>
-
-#include "args.h"
-#include "conf.h"
-
-#define MODULE_CORE_VERSION RATTLE_VERSION_MAJOR
-
-/* name of the config declaration */
-#define MODULE_CONF_NAME	"module"
-
-/* arguments section identifier */
-#define MODULE_ARGSSEC_ID	'M'
-
-/* initial core hook table size */
-#ifndef MODULE_CHKTABSIZ
-#define MODULE_CHKTABSIZ		4
+/* initial module array size */
+#ifndef MODULE_ARRAY_SIZE
+#define MODULE_ARRAY_SIZE	16
 #endif
-
-/* initial module table size */
-#ifndef MODULE_MODTABSIZ
-#define MODULE_MODTABSIZ		16
-#endif
-static RATT_TABLE_INIT(l_modtab);	/* module table */
-
-/* initial core table size */
-#ifndef MODULE_CORTABSIZ
-#define MODULE_CORTABSIZ		16
-#endif
-static RATT_TABLE_INIT(l_cortab);	/* core table */
-
-#ifndef RATTLE_MODULE_PATH
-#define RATTLE_MODULE_PATH "/usr/lib/rattd", "/usr/local/lib/rattd"
-#endif
-static RATT_CONF_DEFVAL(l_conf_modpath_defval, RATTLE_MODULE_PATH);
-static RATT_CONF_LIST_INIT(l_conf_modpath);
-
-static ratt_conf_t l_conf[] = {
-	{ "search-path", "list of path to search for modules",
-	    l_conf_modpath_defval, &l_conf_modpath,
-	    RATTCONFDTSTR, RATTCONFFLLST },
-	{ NULL }
-};
-
-/* module arguments */
-static int l_args_show_modules = 0;
-static char const *l_args_module_path = NULL;
-static int get_args_module_path(char const *);
-static ratt_args_t l_args[] = {
-	{ 'l', NULL, "show a list of available modules",
-	    &l_args_show_modules, NULL, 0 },
-	{ 'p', "path", "use specified path to search for modules",
-	    NULL, get_args_module_path, RATTARGSFLARG },
-	{ 0 }
-};
-
-static int get_args_module_path(char const *path)
-{
-	if (strlen(path) >= PATH_MAX) {
-		warning("%s: path is too long", path);
-		return FAIL;
-	}
-	l_args_module_path = path;
-	return OK;
-}
 
 static int unload_modules(void)
 {
